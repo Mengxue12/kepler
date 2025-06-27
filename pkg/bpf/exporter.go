@@ -196,7 +196,7 @@ func (e *exporter) attach() error {
 	}
 	e.enabledHardwareCounters[config.CPUInstruction] = struct{}{}
 
-	e.cacheMissPerfEvents, err = unixOpenPerfEvent(unix.PERF_TYPE_HW_CACHE, unix.PERF_COUNT_HW_CACHE_MISSES, numCPU)
+	e.cacheMissPerfEvents, err = unixOpenPerfEvent(unix.PERF_TYPE_HARDWARE, unix.PERF_COUNT_HW_CACHE_MISSES, numCPU)
 	if err != nil {
 		klog.Warning("Failed to open perf event for cache misses: ", err)
 		return cleanup()
