@@ -20,6 +20,7 @@ limitations under the License.
 package gpu
 
 import (
+	"github.com/sustainable-computing-io/kepler/pkg/config"
 	"k8s.io/klog/v2"
 )
 
@@ -34,6 +35,10 @@ Then, we use gpu.go file to initialize the acceleratorImpl from power.go when gp
 // init initialize the acceleratorImpl and start it
 func init() {
 	var errLib error
+	if !config.EnabledGPU {
+		klog.Infof("no gpu collector enabled")
+		return
+	}
 	for i := 0; i < len(acceleratorOrder); i++ {
 		klog.Infof("Trying to initialize GPU collector using %s", acceleratorOrder[i].GetName())
 		acceleratorImpl = acceleratorOrder[i]

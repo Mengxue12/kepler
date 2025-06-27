@@ -79,6 +79,7 @@ func findACPIPowerPath() string {
 	var powerPath string
 	err := filepath.WalkDir(acpiPowerPath, func(path string, info fs.DirEntry, err error) error {
 		if err != nil {
+			klog.Infoln("acpi power path error", err) // the path is "/sys/devices/LNXSYSTM:00"
 			return err
 		}
 		if info.IsDir() && (info.Name() == "power" ||

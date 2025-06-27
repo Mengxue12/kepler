@@ -114,6 +114,8 @@ func (e *exporter) attach() error {
 	})
 	if err != nil {
 		return fmt.Errorf("error attaching sched_switch tracepoint: %v", err)
+	} else {
+		klog.Infof("ebpf attached to sched_switch tracepoint")
 	}
 	e.enabledSoftwareCounters[config.CPUTime] = struct{}{}
 
@@ -124,6 +126,8 @@ func (e *exporter) attach() error {
 		})
 		if err != nil {
 			return fmt.Errorf("could not attach irq/softirq_entry: %w", err)
+		} else {
+			klog.Infof("ebpf attached to irq/softirq_entry tracepoint")
 		}
 		e.enabledSoftwareCounters[config.IRQNetTXLabel] = struct{}{}
 		e.enabledSoftwareCounters[config.IRQNetRXLabel] = struct{}{}
@@ -140,6 +144,7 @@ func (e *exporter) attach() error {
 		klog.Warningf("failed to attach tp/%s/%s: %v. Kepler will not collect page cache write events. This will affect the DRAM power model estimation on VMs.", group, name, err)
 	} else {
 		e.enabledSoftwareCounters[config.PageCacheHit] = struct{}{}
+		klog.Infof("ebpf attached to tp/%s/%s tracepoint", group, name)
 	}
 
 	e.pageReadLink, err = link.AttachTracing(link.TracingOptions{
@@ -147,9 +152,11 @@ func (e *exporter) attach() error {
 		AttachType: ebpf.AttachTraceFEntry,
 	})
 	if err != nil {
-		klog.Warningf("failed to attach fentry/mark_page_accessed: %v. Kepler will not collect page cache read events. This will affect the DRAM power model estimation on VMs.", err)
+		klog.Warningf("failed to attach fexit/mark_page_accessed: %v. Kepler will not collect page cache read events. This will affect the DRAM power model estimation on VMs.", err)
 	} else if !e.enabledSoftwareCounters.Has(config.PageCacheHit) {
 		e.enabledSoftwareCounters[config.PageCacheHit] = struct{}{}
+	} else {
+		klog.Infof("ebpf attached to fexit/mark_page_accessed tracepoint")
 	}
 
 	// Return early if hardware counters are not enabled
@@ -175,6 +182,8 @@ func (e *exporter) attach() error {
 	if err != nil {
 		klog.Warning("Failed to open perf event for CPU cycles: ", err)
 		return cleanup()
+	} else {
+		klog.Infof("perf event for CPU cycles opened")
 	}
 	e.enabledHardwareCounters[config.CPUCycle] = struct{}{}
 
@@ -182,6 +191,8 @@ func (e *exporter) attach() error {
 	if err != nil {
 		klog.Warning("Failed to open perf event for CPU instructions: ", err)
 		return cleanup()
+	} else {
+		klog.Infof("perf event for CPU instructions opened")
 	}
 	e.enabledHardwareCounters[config.CPUInstruction] = struct{}{}
 
@@ -189,6 +200,8 @@ func (e *exporter) attach() error {
 	if err != nil {
 		klog.Warning("Failed to open perf event for cache misses: ", err)
 		return cleanup()
+	} else {
+		klog.Infof("perf event for cache misses opened")
 	}
 	e.enabledHardwareCounters[config.CacheMiss] = struct{}{}
 

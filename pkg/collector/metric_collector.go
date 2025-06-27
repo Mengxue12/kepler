@@ -78,6 +78,7 @@ func NewCollector(bpfExporter bpf.Exporter) *Collector {
 func (c *Collector) Initialize() error {
 	// For local estimator, there is endpoint provided, thus we should let
 	// model component decide whether/how to init
+	klog.V(5).Infoln("Initializing power estimator models...")
 	model.CreatePowerEstimatorModels(
 		stats.GetProcessFeatureNames(c.bpfSupportedMetrics),
 		stats.NodeMetadataFeatureNames,

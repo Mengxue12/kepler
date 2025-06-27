@@ -69,7 +69,7 @@ func InitPowerImpl() {
 		return
 	}
 
-	klog.V(1).Infoln("Unable to obtain power, use estimate method")
+	klog.V(1).Infoln("Unable to obtain component power, use estimate method")
 	estimateImpl := &source.PowerEstimate{}
 	powerImpl = estimateImpl
 }
