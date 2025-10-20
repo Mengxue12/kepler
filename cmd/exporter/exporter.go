@@ -93,6 +93,7 @@ func healthProbe(w http.ResponseWriter, req *http.Request) {
 }
 
 func main() {
+	klog.Infof("Kepler running on node: %s", os.Getenv("NODE_NAME"))
 	start := time.Now()
 	klog.InitFlags(nil)
 	flag.Parse()
