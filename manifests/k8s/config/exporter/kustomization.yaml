@@ -1,5 +1,7 @@
 resources:
   - exporter.yaml
+# add this line to add persistent volume claim
+#  - pvc.yaml
 # uncomment this line for openshift
 #  - openshift_scc.yaml
 # uncomment this line if prometheus deployed
@@ -16,6 +18,8 @@ patchesStrategicMerge: []
 #  - ./patch/patch-bm.yaml
 # add this line to enable estimator sidecar
 #  - ./patch/patch-estimator-sidecar.yaml
+# add this line to enable estimator on rpi
+#  - ./patch/patch-estimator-rpi.yaml
 # add this line for openshift patch
 #  - ./patch/patch-openshift.yaml
 # add this line for rootless patch

@@ -27,8 +27,8 @@ source "$PROJECT_ROOT/hack/utils.bash"
 
 declare CLUSTER_PROVIDER="${CLUSTER_PROVIDER:-kind}"
 
-declare IMAGE_TAG=${IMAGE_TAG:-latest}
-declare MODEL_SERVER_IMAGE_TAG=${MODEL_SERVER_IMAGE_TAG:-latest}
+declare IMAGE_TAG=${IMAGE_TAG:-release-0.7.11}
+declare MODEL_SERVER_IMAGE_TAG=${MODEL_SERVER_IMAGE_TAG:-v0.7.11-2}
 declare IMAGE_REPO=${IMAGE_REPO:-quay.io/sustainable_computing_io}
 declare MODEL_SERVER_REPO=${MODEL_SERVER_REPO:-${IMAGE_REPO}}
 declare EXPORTER_IMAGE_NAME=${EXPORTER_IMAGE_NAME:-kepler}
@@ -42,6 +42,8 @@ declare BM_DEPLOY=false
 declare ROOTLESS_DEPLOY=false
 declare OPENSHIFT_DEPLOY=false
 declare ESTIMATOR_SIDECAR_DEPLOY=false
+declare ESTIMATOR_RPI_DEPLOY=false
+declare PVC_DEPLOY=false
 declare CI_DEPLOY=false
 declare DEBUG_DEPLOY=false
 declare MODEL_SERVER_DEPLOY=false
@@ -141,6 +143,24 @@ deploy_estimator_sidecar() {
 	}
 	uncomment_patch estimator-sidecar "${MANIFESTS_OUT_DIR}"/exporter/kustomization.yaml
 	ok "Estimator sidecar deployment configured"
+}
+deploy_estimator_rpi(){
+	header "Estimator RPI Deployment"
+	$ESTIMATOR_RPI_DEPLOY || {
+		skip "skipping estimator with RPI deployment"
+		return 0
+	}
+	uncomment_patch estimator-rpi "${MANIFESTS_OUT_DIR}"/exporter/kustomization.yaml
+	ok "Estimator RPI deployment configured"
+}
+deploy_PVC(){
+	header "create PVC"
+	$PVC_DEPLOY || {
+		skip "skipping pvc deployment"
+		return 0
+	}
+	uncomment pvc "${MANIFESTS_OUT_DIR}"/exporter/kustomization.yaml
+	ok "PVC deployment configured"
 }
 deploy_ci() {
 	header "CI Deployment"
