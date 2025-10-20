@@ -81,7 +81,7 @@ var (
 	kubeconfig                   = flag.String("kubeconfig", "", "absolute path to the kubeconfig file, if empty we use the in-cluster configuration")
 	apiserverEnabled             = flag.Bool("apiserver", true, "if apiserver is disabled, we collect pod information from kubelet")
 	redfishCredFilePath          = flag.String("redfish-cred-file-path", "", "path to the redfish credential file")
-	exposeEstimatedIdlePower     = flag.Bool("expose-estimated-idle-power", false, "estimated idle power is meaningful only if Kepler is running on bare-metal or when there is only one virtual machine on the node")
+	exposeEstimatedIdlePower     = flag.Bool("expose-estimated-idle-power", true, "estimated idle power is meaningful only if Kepler is running on bare-metal or when there is only one virtual machine on the node")
 )
 
 func healthProbe(w http.ResponseWriter, req *http.Request) {
