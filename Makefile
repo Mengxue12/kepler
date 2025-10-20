@@ -109,6 +109,16 @@ build_image: image_builder_check ## Build image without DCGM.
 	$(CTR_CMD) tag $(IMAGE_REPO)/$(IMAGE_NAME):$(IMAGE_BUILD_TAG) $(IMAGE_REPO)/$(IMAGE_NAME):$(IMAGE_TAG)
 .PHONY: build_image
 
+build_image_cross: image_builder_check ## Build image cross platform without DCGM (Nvidia GPU).
+	# build kepler without dcgm
+	$(CTR_CMD) buildx build -t $(IMAGE_REPO)/$(IMAGE_NAME):$(IMAGE_BUILD_TAG) \
+		-f $(DOCKERFILE) \
+		--build-arg INSTALL_DCGM=false \
+		--build-arg INSTALL_HABANA=false \
+		--platform="linux/amd64,linux/arm64" \
+		--push .
+.PHONY: build_image_cross
+
 build_image_dcgm:  image_builder_check ## Build image with DCGM.
 	# build kepler with dcgm
 	$(CTR_CMD) build -t $(IMAGE_REPO)/$(IMAGE_NAME):$(IMAGE_BUILD_TAG)-"dcgm" \
