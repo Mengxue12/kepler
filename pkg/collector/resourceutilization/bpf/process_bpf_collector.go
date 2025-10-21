@@ -90,8 +90,11 @@ func UpdateProcessBPFMetrics(bpfExporter bpf.Exporter, processStats map[uint64]*
 		comm := C.GoString((*C.char)(unsafe.Pointer(&ct.Comm)))
 
 		if ct.Pid != 0 {
-			klog.V(6).Infof("process %s (pid=%d, cgroup=%d) has %d CPU cycles, %d instructions, %d cache misses, %d page cache hits",
-				comm, ct.Pid, ct.CgroupId, ct.CpuCycles, ct.CpuInstr, ct.CacheMiss, ct.PageCacheHit)
+			klog.V(6).Infof("process %s (pid=%d, cgroup=%d) has %d CPU cycles, %d instructions, %d cache misses, %d page cache hits, %d ProcessRunTime",
+				comm, ct.Pid, ct.CgroupId, ct.CpuCycles, ct.CpuInstr, ct.CacheMiss, ct.PageCacheHit, ct.ProcessRunTime)
+		} else {
+			klog.V(6).Infof("idle process %s (pid=%d, cgroup=%d) has %d CPU cycles, %d instructions, %d cache misses, %d page cache hits, %d ProcessRunTime",
+				comm, ct.Pid, ct.CgroupId, ct.CpuCycles, ct.CpuInstr, ct.CacheMiss, ct.PageCacheHit, ct.ProcessRunTime)
 		}
 		// skip process without resource utilization
 		if ct.CacheMiss == 0 && ct.PageCacheHit == 0 {
