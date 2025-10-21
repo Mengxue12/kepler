@@ -69,8 +69,11 @@ func InitPowerImpl() {
 	} else if acpi := source.NewACPIPowerMeter(config.GetMockACPIPowerPath()); acpi != nil && acpi.CollectEnergy {
 		powerImpl = acpi
 	}
-
-	klog.V(1).Infof("using %s to obtain platform power", powerImpl.GetName())
+	if !powerImpl.IsSystemCollectionSupported() {
+		klog.V(1).Infoln("Unable to obtain platform power, use estimate method")
+	} else {
+		klog.V(1).Infof("using %s to obtain platform power", powerImpl.GetName())
+	}
 }
 
 func GetSourceName() string {

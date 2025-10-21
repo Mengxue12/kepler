@@ -68,7 +68,7 @@ func NewACPIPowerMeter(mockpath string) *ACPI {
 			acpi.CollectEnergy = true
 			klog.V(5).Infof("Using the ACPI power meter path: %s\n", acpi.powerPath)
 		} else {
-			klog.Infoln("Could not find any ACPI power meter path. Is it a VM?")
+			klog.Infoln("Could not find any ACPI power meter path.")
 		}
 	}
 
@@ -92,6 +92,7 @@ func findACPIPowerPath() string {
 		}
 		if !info.IsDir() && strings.Contains(info.Name(), "_average") {
 			powerPath = path[:(len(path) - len(info.Name()))]
+			klog.V(5).Infof("Found ACPI power meter path: %s\n", powerPath)
 		}
 		return nil
 	})
