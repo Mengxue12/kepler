@@ -93,6 +93,7 @@ func GetProcessFeatureNames(bpfSupportedMetrics bpf.SupportedMetrics) []string {
 
 func GetNodeName() string {
 	if nodeName := os.Getenv("NODE_NAME"); nodeName != "" {
+		klog.Infof("NODE_NAME environment variable is set to %s", nodeName)
 		return nodeName
 	}
 	nodeName, err := os.Hostname()
@@ -212,6 +213,39 @@ func getS390xArchitecture() (string, error) {
 	return fmt.Sprintf("zSystems model %s", strings.TrimSpace(uarch[1])), err
 }
 
+func getArmArchitecture() (string, error) {
+	// use lscpu to get CPUArchitecture
+	grep := exec.Command(
+		"grep", "Architecture:")
+	output := exec.Command("lscpu")
+	pipe, err := output.StdoutPipe()
+	if err != nil {
+		return "", err
+	}
+	defer pipe.Close()
+	grep.Stdin = pipe
+	err = output.Start()
+	if err != nil {
+		klog.Errorf("lscpu command start failure: %s", err)
+		return "", err
+	}
+	res, err := grep.Output()
+	if err != nil {
+		klog.Errorf("grep lscpu command output failure: %s", err)
+		return "", err
+	}
+	uarch := strings.Split(string(res), ":")
+	if len(uarch) != 2 {
+		return "", fmt.Errorf("lscpu grep output is unexpected")
+	}
+
+	if err = output.Wait(); err != nil {
+		klog.Errorf("lscpu command is not properly completed: %s", err)
+	}
+
+	return fmt.Sprintf("Systems model %s", strings.TrimSpace(uarch[1])), err
+}
+
 // readCPUModelData() reads the CPU model data from CPUModelDataPath and if
 // the file does not exist, reads the data from ./data/cpus.yaml.
 func readCPUModelData() ([]byte, error) {
@@ -308,13 +342,17 @@ func getCPUArchitecture() (string, error) {
 		err       error
 	)
 	// get myCPUArch for x86-64 and ARM CPUs, for s390x CPUs, directly return result.
+	klog.Infof("Runtime GOARCH: %s", runtime.GOARCH)
 	if runtime.GOARCH == "amd64" {
 		myCPUArch, err = getX86Architecture()
 	} else if runtime.GOARCH == "s390x" {
 		return getS390xArchitecture()
+	} else if runtime.GOARCH == "arm64" {
+		myCPUArch, err = getArmArchitecture()
 	} else {
 		myCPUArch, err = getCPUPmuName()
 	}
+	klog.Infof("myCPUArch: %s", myCPUArch)
 
 	if err == nil {
 		return myCPUArch, nil
