@@ -190,6 +190,8 @@ func (c *Collector) AggregateProcessResourceUtilizationMetrics() {
 						c.createContainerStatsIfNotExist(process.ContainerID, process.CGroupID, process.PID, config.EnabledEBPFCgroupID)
 						c.ContainerStats[process.ContainerID].ResourceUsage[metricName].AddDeltaStat(id, delta)
 						foundContainer[process.ContainerID] = true
+					} else {
+						klog.V(5).Infof("process %s (pid=%d, cgroup=%d) has no containerID", process.Command, process.PID, process.CGroupID)
 					}
 				}
 
@@ -296,8 +298,8 @@ func (c *Collector) printDebugMetrics() {
 	// check the log verbosity level before iterating in all container
 	if klog.V(3).Enabled() {
 		if config.IsExposeContainerStatsEnabled() {
-			for _, v := range c.ContainerStats {
-				klog.V(3).Infoln(v)
+			for i, v := range c.ContainerStats {
+				klog.V(3).Infoln(i, ":", v)
 			}
 		}
 		klog.V(3).Infoln(c.NodeStats.String())
