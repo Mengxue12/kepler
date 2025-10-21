@@ -41,7 +41,7 @@ func updateSWCounters(key uint64, ct *ProcessBPFMetrics, processStats map[uint64
 		case config.CPUTime:
 			processStats[key].ResourceUsage[config.CPUTime].AddDeltaStat(utils.GenericSocketID, ct.ProcessRunTime/1000 /* convert microseconds to miliseconds */)
 		case config.PageCacheHit:
-			processStats[key].ResourceUsage[config.PageCacheHit].AddDeltaStat(utils.GenericSocketID, ct.PageCacheHit/(1000*1000))
+			processStats[key].ResourceUsage[config.PageCacheHit].AddDeltaStat(utils.GenericSocketID, ct.PageCacheHit)
 		case config.IRQNetTXLabel:
 			processStats[key].ResourceUsage[config.IRQNetTXLabel].AddDeltaStat(utils.GenericSocketID, uint64(ct.VecNr[bpf.IRQNetTX]))
 		case config.IRQNetRXLabel:
