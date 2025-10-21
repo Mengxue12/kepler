@@ -72,7 +72,7 @@ func (e *PrometheusExporter) NewVMCollector(vmMetrics map[string]*stats.VMStats)
 
 // NewNodeCollector creates a new prometheus collector for node metrics
 func (e *PrometheusExporter) NewNodeCollector(nodeMetrics *stats.NodeStats) {
-	e.NodeStatsCollector = node.NewNodeCollector(nodeMetrics, &e.Mx)
+	e.NodeStatsCollector = node.NewNodeCollector(nodeMetrics, &e.Mx, e.bpfSupportedMetrics)
 }
 
 func GetRegistry() *prometheus.Registry {
