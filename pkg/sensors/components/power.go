@@ -50,21 +50,21 @@ var (
 func InitPowerImpl() {
 	sysfsImpl := &source.PowerSysfs{}
 	if sysfsImpl.IsSystemCollectionSupported() /*&& false*/ {
-		klog.V(1).Infoln("use sysfs to obtain power")
+		klog.V(1).Infoln("use sysfs to obtain component power")
 		powerImpl = sysfsImpl
 		return
 	}
 
 	msrImpl := &source.PowerMSR{}
 	if msrImpl.IsSystemCollectionSupported() && config.EnabledMSR {
-		klog.V(1).Infoln("use MSR to obtain power")
+		klog.V(1).Infoln("use MSR to obtain component power")
 		powerImpl = msrImpl
 		return
 	}
 
 	apmXgeneSysfsImpl := &source.ApmXgeneSysfs{}
 	if apmXgeneSysfsImpl.IsSystemCollectionSupported() {
-		klog.V(1).Infoln("use Ampere Xgene sysfs to obtain power")
+		klog.V(1).Infoln("use Ampere Xgene sysfs to obtain component power")
 		powerImpl = apmXgeneSysfsImpl
 		return
 	}
