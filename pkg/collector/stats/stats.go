@@ -141,19 +141,23 @@ func (m *Stats) CalcDynEnergy(absM, idleM, dynM, id string) {
 		return
 	}
 	totalPower := m.EnergyUsage[absM][id].GetDelta()
-	klog.V(6).Infof("Absolute Energy stat: %v (%s)", m.EnergyUsage[absM], id)
+	klog.V(6).Infof("Absolute Energy %s stat: %v, totalPower: %v (%s)", absM, m.EnergyUsage[absM], totalPower, id)
 	idlePower := uint64(0)
 	if idleStat, found := m.EnergyUsage[idleM][id]; found {
 		idlePower = idleStat.GetDelta()
-		klog.V(6).Infof("Idle Energy stat: %v (%s)", m.EnergyUsage[idleM], id)
+		klog.V(6).Infof("Idle Energy %s stat: %v, idlePower: %v (%s)", idleM, m.EnergyUsage[idleM], idlePower, id)
 	}
 	dynPower := calcDynEnergy(totalPower, idlePower)
 	m.EnergyUsage[dynM].SetDeltaStat(id, dynPower)
-	klog.V(6).Infof("Dynamic Energy stat: %v (%s)", m.EnergyUsage[dynM], id)
+	klog.V(6).Infof("Dynamic Energy %s stat: %v, dynPower: %v (%s)", dynM, m.EnergyUsage[dynM], dynPower, id)
 }
 
 func calcDynEnergy(totalE, idleE uint64) uint64 {
-	if (totalE == 0) || (idleE == 0) || (totalE < idleE) {
+	if (totalE == 0) || (idleE == 0) {
+		klog.V(6).Infof("totalE or idleE is 0: totalE: %d, idleE: %d", totalE, idleE)
+		return 0
+	} else if totalE < idleE {
+		klog.V(6).Infof("Need to be checked: totalE < idleE: totalE: %d, idleE: %d", totalE, idleE)
 		return 0
 	}
 	return totalE - idleE
