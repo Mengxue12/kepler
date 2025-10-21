@@ -73,12 +73,13 @@ func GetProcessFeatureNames(bpfSupportedMetrics bpf.SupportedMetrics) []string {
 	// bpf software counter metrics
 	for counterKey := range bpfSupportedMetrics.SoftwareCounters {
 		metrics = append(metrics, counterKey)
+		klog.V(3).Infof("Available ebpf software counters: %v", metrics)
 	}
 	// bpf hardware counter metrics
 	for counterKey := range bpfSupportedMetrics.HardwareCounters {
 		metrics = append(metrics, counterKey)
 	}
-	klog.V(3).Infof("Available ebpf counters: %v", metrics)
+	klog.V(3).Infof("Available ebpf software and hardware counters: %v", metrics)
 
 	// gpu metric
 	if config.EnabledGPU && gpu.IsGPUCollectionSupported() {
