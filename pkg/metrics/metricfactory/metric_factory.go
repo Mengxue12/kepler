@@ -43,6 +43,7 @@ func EnergyMetricsPromDesc(context string) (descriptions map[string]*prometheus.
 			// TODO: need to update condition when we have more type of energy metric such as network, disk.
 			source = components.GetSourceName()
 		}
+		klog.Infof("Using %s as source for %s %s", source, context, name)
 		descriptions[name] = energyMetricsPromDesc(context, name, source)
 	}
 	return descriptions
