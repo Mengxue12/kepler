@@ -53,6 +53,8 @@ func CreateNodePlatformPoweEstimatorModel(nodeFeatureNames, systemMetaDataFeatur
 		} else {
 			klog.Infof("Failed to create %s Power Model to estimate Node Platform Power: %v\n", modelConfig.ModelType.String()+"/"+modelConfig.ModelOutputType.String(), err)
 		}
+	} else {
+		klog.V(1).Infof("Node Platform Power Model is not created as system collection is supported")
 	}
 }
 
@@ -75,7 +77,7 @@ func GetNodePlatformPower(nodeMetrics *stats.NodeStats, isIdlePower bool) (platf
 		NodePlatformPowerModel.ResetSampleIdx()
 		// converts to node metrics map to array to add the samples to the power model
 		// the featureList is defined in the container power model file and the features varies accordinly to the selected power model
-		featureValues := nodeMetrics.ToEstimatorValues(NodePlatformPowerModel.GetNodeFeatureNamesList(), true) // add container features with normalized values
+		featureValues := nodeMetrics.ToEstimatorValues(NodePlatformPowerModel.GetNodeFeatureNamesList(), true) // add node features with normalized values
 		NodePlatformPowerModel.AddNodeFeatureValues(featureValues)                                             // add samples to estimation
 	}
 	powers, err := NodePlatformPowerModel.GetPlatformPower(isIdlePower)
