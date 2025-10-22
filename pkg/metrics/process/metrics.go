@@ -95,7 +95,7 @@ func (c *collector) Collect(ch chan<- prometheus.Metric) {
 	for _, process := range c.ProcessStats {
 		utils.CollectEnergyMetrics(ch, process, c.collectors)
 		utils.CollectResUtilizationMetrics(ch, process, c.collectors, c.bpfSupportedMetrics)
-		utils.CollectTotalEnergyMetrics(ch, process, c.collectors)
+		// utils.CollectTotalEnergyMetrics(ch, process, c.collectors)
 	}
 	c.Mx.Unlock()
 }

@@ -97,7 +97,7 @@ func (c *collector) Collect(ch chan<- prometheus.Metric) {
 		utils.CollectEnergyMetrics(ch, container, c.collectors)
 		utils.CollectResUtilizationMetrics(ch, container, c.collectors, c.bpfSupportedMetrics)
 		// update container total joules
-		utils.CollectTotalEnergyMetrics(ch, container, c.collectors)
+		// utils.CollectTotalEnergyMetrics(ch, container, c.collectors)
 	}
 	c.Mx.Unlock()
 }
