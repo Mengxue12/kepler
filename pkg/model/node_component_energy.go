@@ -57,6 +57,8 @@ func CreateNodeComponentPoweEstimatorModel(nodeFeatureNames, systemMetaDataFeatu
 		} else {
 			klog.Infof("Failed to create %s Power Model to estimate Node Component Power: %v\n", modelConfig.ModelType.String()+"/"+modelConfig.ModelOutputType.String(), err)
 		}
+	} else {
+		klog.Infof("Node Component Power Model is not created as system collection is enabled")
 	}
 }
 
@@ -78,7 +80,7 @@ func GetNodeComponentPowers(nodeMetrics *stats.NodeStats, isIdlePower bool) (nod
 	if !isIdlePower {
 		// reset power model features sample list for new estimation
 		NodeComponentPowerModel.ResetSampleIdx()
-		featureValues := nodeMetrics.ToEstimatorValues(NodeComponentPowerModel.GetNodeFeatureNamesList(), true) // add container features with normalized values
+		featureValues := nodeMetrics.ToEstimatorValues(NodeComponentPowerModel.GetNodeFeatureNamesList(), true) // add node features with normalized values
 		NodeComponentPowerModel.AddNodeFeatureValues(featureValues)                                             // add samples to estimation
 	}
 	powers, err := NodeComponentPowerModel.GetComponentsPower(isIdlePower)
