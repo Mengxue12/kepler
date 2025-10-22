@@ -81,7 +81,7 @@ func handleContainerStats(ch chan<- prometheus.Metric, collection *stats.Contain
 	energy += collection.EnergyUsage[config.DynEnergyInDRAM].SumAllAggrValues()
 	energy += collection.EnergyUsage[config.DynEnergyInOther].SumAllAggrValues()
 	energy += collection.EnergyUsage[config.DynEnergyInGPU].SumAllAggrValues()
-	energyInJoules := float64(energy) / utils.JouleMillijouleConversionFactor
+	energyInJoules := float64(energy) // utils.JouleMillijouleConversionFactor
 
 	labelValues := []string{collection.ContainerID, collection.PodName, collection.ContainerName, collection.Namespace, "dynamic"}
 
@@ -91,7 +91,7 @@ func handleContainerStats(ch chan<- prometheus.Metric, collection *stats.Contain
 	energy += collection.EnergyUsage[config.IdleEnergyInDRAM].SumAllAggrValues()
 	energy += collection.EnergyUsage[config.IdleEnergyInOther].SumAllAggrValues()
 	energy += collection.EnergyUsage[config.IdleEnergyInGPU].SumAllAggrValues()
-	energyInJoules = float64(energy) / utils.JouleMillijouleConversionFactor
+	energyInJoules = float64(energy) // utils.JouleMillijouleConversionFactor
 	labelValues = []string{collection.ContainerID, collection.PodName, collection.ContainerName, collection.Namespace, "idle"}
 	ch <- collectors["total"].MustMetric(energyInJoules, labelValues...)
 }
@@ -101,7 +101,7 @@ func handleProcessStats(ch chan<- prometheus.Metric, collection *stats.ProcessSt
 	energy += collection.EnergyUsage[config.DynEnergyInDRAM].SumAllAggrValues()
 	energy += collection.EnergyUsage[config.DynEnergyInOther].SumAllAggrValues()
 	energy += collection.EnergyUsage[config.DynEnergyInGPU].SumAllAggrValues()
-	energyInJoules := float64(energy) / utils.JouleMillijouleConversionFactor
+	energyInJoules := float64(energy) // utils.JouleMillijouleConversionFactor
 
 	labelValues := []string{strconv.FormatUint(collection.PID, 10), collection.ContainerID, collection.VMID, collection.Command, "dynamic"}
 
@@ -111,7 +111,7 @@ func handleProcessStats(ch chan<- prometheus.Metric, collection *stats.ProcessSt
 	energy += collection.EnergyUsage[config.IdleEnergyInDRAM].SumAllAggrValues()
 	energy += collection.EnergyUsage[config.IdleEnergyInOther].SumAllAggrValues()
 	energy += collection.EnergyUsage[config.IdleEnergyInGPU].SumAllAggrValues()
-	energyInJoules = float64(energy) / utils.JouleMillijouleConversionFactor
+	energyInJoules = float64(energy) // utils.JouleMillijouleConversionFactor
 	labelValues = []string{strconv.FormatUint(collection.PID, 10), collection.ContainerID, collection.VMID, collection.Command, "idle"}
 	ch <- collectors["total"].MustMetric(energyInJoules, labelValues...)
 }
@@ -126,19 +126,19 @@ func collectEnergy(ch chan<- prometheus.Metric, instance interface{}, metricName
 	switch v := instance.(type) {
 	case *stats.ContainerStats:
 		container := instance.(*stats.ContainerStats)
-		value = float64(container.EnergyUsage[metricName].SumAllAggrValues()) / JouleMillijouleConversionFactor
+		value = float64(container.EnergyUsage[metricName].SumAllAggrValues()) // JouleMillijouleConversionFactor
 		labelValues = []string{container.ContainerID, container.PodName, container.ContainerName, container.Namespace, mode}
 		collect(ch, collector, value, labelValues)
 
 	case *stats.ProcessStats:
 		process := instance.(*stats.ProcessStats)
-		value = float64(process.EnergyUsage[metricName].SumAllAggrValues()) / JouleMillijouleConversionFactor
+		value = float64(process.EnergyUsage[metricName].SumAllAggrValues()) // JouleMillijouleConversionFactor
 		labelValues = []string{strconv.FormatUint(process.PID, 10), process.ContainerID, process.VMID, process.Command, mode}
 		collect(ch, collector, value, labelValues)
 
 	case *stats.VMStats:
 		vm := instance.(*stats.VMStats)
-		value = float64(vm.EnergyUsage[metricName].SumAllAggrValues()) / JouleMillijouleConversionFactor
+		value = float64(vm.EnergyUsage[metricName].SumAllAggrValues()) // JouleMillijouleConversionFactor
 		labelValues = []string{vm.VMID, mode}
 		collect(ch, collector, value, labelValues)
 
@@ -147,7 +147,7 @@ func collectEnergy(ch chan<- prometheus.Metric, instance interface{}, metricName
 		node := instance.(*stats.NodeStats)
 		if _, exist := node.EnergyUsage[metricName]; exist {
 			for deviceID, utilization := range node.EnergyUsage[metricName] {
-				value = float64(utilization.GetAggr()) / JouleMillijouleConversionFactor
+				value = float64(utilization.GetAggr()) // JouleMillijouleConversionFactor
 				labelValues = []string{deviceID, stats.NodeName, mode}
 				collect(ch, collector, value, labelValues)
 			}
