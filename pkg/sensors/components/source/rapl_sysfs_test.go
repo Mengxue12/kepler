@@ -17,6 +17,7 @@ limitations under the License.
 package source
 
 import (
+	"fmt"
 	"os"
 	"testing"
 
@@ -66,46 +67,70 @@ var _ = Describe("RAPL Sysfs", func() {
 	Context("Energy reading functions", func() {
 		It("should handle energy reading gracefully when RAPL is not available", func() {
 			// Test that functions don't panic when RAPL is not available
-			_, err := raplSysfs.GetAbsEnergyFromDram()
+			val, err := raplSysfs.GetAbsEnergyFromDram()
 			if err != nil {
 				Expect(err.Error()).To(ContainSubstring("could not read RAPL energy"))
+			} else {
+				// Also print the received result for debugging/informational purposes
+				fmt.Printf("GetAbsEnergyFromDram() returned: %v\n", val)
 			}
 
-			_, err = raplSysfs.GetAbsEnergyFromCore()
+			val, err = raplSysfs.GetAbsEnergyFromCore()
 			if err != nil {
 				Expect(err.Error()).To(ContainSubstring("could not read RAPL energy"))
+			} else {
+				// Also print the received result for debugging/informational purposes
+				fmt.Printf("GetAbsEnergyFromCore() returned: %v\n", val)
 			}
 
-			_, err = raplSysfs.GetAbsEnergyFromUncore()
+			val, err = raplSysfs.GetAbsEnergyFromUncore()
 			if err != nil {
 				Expect(err.Error()).To(ContainSubstring("could not read RAPL energy"))
+			} else {
+				// Also print the received result for debugging/informational purposes
+				fmt.Printf("GetAbsEnergyFromUncore() returned: %v\n", val)
 			}
 
-			_, err = raplSysfs.GetAbsEnergyFromPackage()
+			val, err = raplSysfs.GetAbsEnergyFromPackage()
 			if err != nil {
 				Expect(err.Error()).To(ContainSubstring("could not read RAPL energy"))
+			} else {
+				// Also print the received result for debugging/informational purposes
+				fmt.Printf("GetAbsEnergyFromPackage() returned: %v\n", val)
 			}
 		})
 
 		It("should handle max energy range reading gracefully", func() {
-			_, err := raplSysfs.GetMaxEnergyRangeFromDram()
+			val, err := raplSysfs.GetMaxEnergyRangeFromDram()
 			if err != nil {
 				Expect(err.Error()).To(ContainSubstring("could not read RAPL energy max range"))
+			} else {
+				// Also print the received result for debugging/informational purposes
+				fmt.Printf("GetMaxEnergyRangeFromDram() returned: %v\n", val)
 			}
 
-			_, err = raplSysfs.GetMaxEnergyRangeFromCore()
+			val, err = raplSysfs.GetMaxEnergyRangeFromCore()
 			if err != nil {
 				Expect(err.Error()).To(ContainSubstring("could not read RAPL energy max range"))
+			} else {
+				// Also print the received result for debugging/informational purposes
+				fmt.Printf("GetMaxEnergyRangeFromCore() returned: %v\n", val)
 			}
 
-			_, err = raplSysfs.GetMaxEnergyRangeFromUncore()
+			val, err = raplSysfs.GetMaxEnergyRangeFromUncore()
 			if err != nil {
 				Expect(err.Error()).To(ContainSubstring("could not read RAPL energy max range"))
+			} else {
+				// Also print the received result for debugging/informational purposes
+				fmt.Printf("GetMaxEnergyRangeFromUncore() returned: %v\n", val)
 			}
 
-			_, err = raplSysfs.GetMaxEnergyRangeFromPackage()
+			val, err = raplSysfs.GetMaxEnergyRangeFromPackage()
 			if err != nil {
 				Expect(err.Error()).To(ContainSubstring("could not read RAPL energy max range"))
+			} else {
+				// Also print the received result for debugging/informational purposes
+				fmt.Printf("GetMaxEnergyRangeFromPackage() returned: %v\n", val)
 			}
 		})
 
