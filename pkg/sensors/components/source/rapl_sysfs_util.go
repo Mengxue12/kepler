@@ -20,9 +20,12 @@ import (
 	"fmt"
 	"os"
 	"strings"
+
+	"k8s.io/klog/v2"
 )
 
 func detectEventPaths() {
+	klog.Info("The number of packages: ", numPackages)
 	for i := 0; i < numPackages; i++ {
 		packagePath := fmt.Sprintf(packageNamePathTemplate, i)
 		data, err := os.ReadFile(packagePath + "name")
@@ -30,6 +33,7 @@ func detectEventPaths() {
 		if err != nil {
 			continue
 		}
+		klog.Infof("found rapl packageName: %s", packageName)
 		eventPaths[packageName] = map[string]string{}
 		eventPaths[packageName][packageName] = packagePath
 		for j := 0; j < numRAPLEvents; j++ {
@@ -39,6 +43,7 @@ func detectEventPaths() {
 			if err != nil {
 				continue
 			}
+			klog.Infof("found rapl eventName: %s", eventName)
 			eventPaths[packageName][eventName] = eventNamePath
 		}
 	}

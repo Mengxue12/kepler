@@ -76,13 +76,14 @@ func readEventEnergy(eventName string) map[string]uint64 {
 			var data []byte
 
 			if data, err = os.ReadFile(path + energyFile); err != nil {
-				klog.V(3).Infoln(err)
+				klog.V(3).Infoln("readEventEnergy error: ", err)
 				continue
 			}
 			if e, err = strconv.ParseUint(strings.TrimSpace(string(data)), 10, 64); err != nil {
-				klog.V(3).Infoln(err)
+				klog.V(3).Infoln("readEventEnergy error: ", err)
 				continue
 			}
+			klog.Infof("readEventEnergy: %s, %d", eventName, e)
 			e /= 1000 /*mJ*/
 			energy[pkID] = e
 		}
