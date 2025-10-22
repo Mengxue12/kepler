@@ -118,7 +118,7 @@ func createPowerModelEstimator(modelConfig *types.ModelConfig) (PowerModelInterf
 		if err != nil {
 			return nil, err
 		}
-		klog.V(3).Infof("Using Power Model %s", modelConfig.ModelOutputType.String())
+		klog.V(3).Infof("Using Power Model Local Regressor %s", modelConfig.ModelOutputType.String())
 		return model, nil
 
 	case types.EstimatorSidecar:
@@ -142,7 +142,7 @@ func createPowerModelEstimator(modelConfig *types.ModelConfig) (PowerModelInterf
 		if err != nil {
 			return nil, err
 		}
-		klog.V(3).Infof("Using Power Model %s", modelConfig.ModelOutputType.String())
+		klog.V(3).Infof("Using Power Model EstimatorSidecar %s", modelConfig.ModelOutputType.String())
 		return model, nil
 	}
 
@@ -188,21 +188,29 @@ func getModelConfigKey(modelItem, attribute string) string {
 func getPowerModelType(powerSourceTarget string) (modelType types.ModelType) {
 	useEstimatorSidecarStr := config.ModelConfigValues[getModelConfigKey(powerSourceTarget, config.EstimatorEnabledKey)]
 	if strings.EqualFold(useEstimatorSidecarStr, "true") {
+		klog.Infof("model type is EstimatorSidecar")
 		modelType = types.EstimatorSidecar
 		return
 	}
 	useLocalRegressor := config.ModelConfigValues[getModelConfigKey(powerSourceTarget, config.LocalRegressorEnabledKey)]
 	if strings.EqualFold(useLocalRegressor, "true") {
+		klog.Infof("model type is Local Regressor")
 		modelType = types.Regressor
 		return
 	}
 	// set the default node power model as Regressor
 	if powerSourceTarget == config.NodePlatformPowerKey || powerSourceTarget == config.NodeComponentsPowerKey {
+		if powerSourceTarget == config.NodePlatformPowerKey {
+			klog.Infof("node platform power model type is Local Regressor")
+		} else {
+			klog.Infof("node components power model type is Local Regressor")
+		}
 		modelType = types.Regressor
 		return
 	}
 	// set the default process power model as Ratio
 	modelType = types.Ratio
+	klog.Infof("model type is Ratio")
 	return
 }
 
