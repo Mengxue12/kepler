@@ -113,6 +113,7 @@ func CreateProcessPowerEstimatorModel(processFeatureNames, systemMetaDataFeature
 	if err == nil {
 		klog.V(1).Infof("Using the %s Power Model to estimate Process Platform Power", modelConfig.ModelType.String()+"/"+modelConfig.ModelOutputType.String())
 		klog.V(1).Infof("Process feature names: %v", modelConfig.ProcessFeatureNames)
+		klog.V(1).Infof("Node feature names: %v", modelConfig.NodeFeatureNames)
 	} else {
 		klog.Infof("Failed to create %s Power Model to estimate Process Platform Power: %v\n", modelConfig.ModelType.String()+"/"+modelConfig.ModelOutputType.String(), err)
 	}
@@ -123,6 +124,7 @@ func CreateProcessPowerEstimatorModel(processFeatureNames, systemMetaDataFeature
 	if err == nil {
 		klog.V(1).Infof("Using the %s Power Model to estimate Process Component Power", modelConfig.ModelType.String()+"/"+modelConfig.ModelOutputType.String())
 		klog.V(1).Infof("Process feature names: %v", modelConfig.ProcessFeatureNames)
+		klog.V(1).Infof("Node feature names: %v", modelConfig.NodeFeatureNames)
 	} else {
 		klog.Infof("Failed to create %s Power Model to estimate Process Component Power: %v\n", modelConfig.ModelType.String()+"/"+modelConfig.ModelOutputType.String(), err)
 	}
