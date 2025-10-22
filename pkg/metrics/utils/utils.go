@@ -204,11 +204,14 @@ func CollectResUtil(ch chan<- prometheus.Metric, instance interface{}, metricNam
 	case *stats.NodeStats:
 		node := instance.(*stats.NodeStats)
 		if _, exist := node.ResourceUsage[metricName]; exist {
+			klog.V(5).Infof("NodeStats %s has resource metric %s\n", stats.NodeName, metricName)
 			for deviceID, utilization := range node.ResourceUsage[metricName] {
 				value = float64(utilization.GetAggr())
 				labelValues = []string{deviceID, stats.NodeName}
 				collect(ch, collector, value, labelValues)
 			}
+		} else {
+			klog.Errorf("NodeStats %s does not have metric %s\n", stats.NodeName, metricName)
 		}
 
 	default:
