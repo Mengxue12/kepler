@@ -93,7 +93,7 @@ func (r *Regressor) Start() error {
 	if weight == nil {
 		// next try loading from URL by config
 		weight, err = r.loadWeightFromURLorLocal()
-		klog.V(3).Infof("Regression Model (%s): loadWeightFromURLorLocal(%v): %v (error: %v)", outputStr, r.ModelWeightsURL, weight, err)
+		klog.V(3).Infof("Regression Model (%s): loadWeightFromURLorLocal(URL:%v;Local:%v): %v (error: %v)", outputStr, r.ModelWeightsURL, r.ModelWeightsFilepath, weight, err)
 	}
 	if weight != nil {
 		r.enabled = true
