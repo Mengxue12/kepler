@@ -25,7 +25,6 @@ import (
 )
 
 func detectEventPaths() {
-	numPackages += 1 // some pc has the psys package for rapl
 	klog.Info("The number of packages: ", numPackages)
 	for i := 0; i < numPackages; i++ {
 		packagePath := fmt.Sprintf(packageNamePathTemplate, i)
@@ -40,10 +39,10 @@ func detectEventPaths() {
 		for j := 0; j < numRAPLEvents; j++ {
 			eventNamePath := fmt.Sprintf(eventNamePathTemplate, i, i, j)
 			data, err := os.ReadFile(eventNamePath + "name")
-			eventName := strings.TrimSpace(string(data))
 			if err != nil {
 				continue
 			}
+			eventName := strings.TrimSpace(string(data))
 			klog.Infof("found rapl eventName: %s", eventName)
 			eventPaths[packageName][eventName] = eventNamePath
 		}

@@ -39,7 +39,7 @@ const (
 	dramEvent    = "dram"
 	coreEvent    = "core"
 	uncoreEvent  = "uncore"
-	packageEvent = "psys"
+	packageEvent = "package"
 )
 
 var (
@@ -83,7 +83,7 @@ func readEventEnergy(eventName string) map[string]uint64 {
 				klog.V(3).Infoln("readEventEnergy error: ", err)
 				continue
 			}
-			klog.Infof("readEventEnergy: %s, %d", eventName, e)
+			klog.V(6).Infof("readEventEnergy: %s, %d", eventName, e)
 			e /= 1000 /*mJ*/
 			energy[pkID] = e
 		}
@@ -155,7 +155,13 @@ func (r *PowerSysfs) GetAbsEnergyFromNodeComponents() map[int]NodeComponentsEner
 	dramEnergies := readEventEnergy(dramEvent)
 	uncoreEnergies := readEventEnergy(uncoreEvent)
 
+	klog.Infof("pkgEnergies: %v", pkgEnergies)
+	klog.Infof("coreEnergies: %v", coreEnergies)
+	klog.Infof("dramEnergies: %v", dramEnergies)
+	klog.Infof("uncoreEnergies: %v", uncoreEnergies)
+
 	for pkgID, pkgEnergy := range pkgEnergies {
+		klog.Infof("pkgID: %s, pkgEnergy: %d", pkgID, pkgEnergy)
 		coreEnergy := coreEnergies[pkgID]
 		dramEnergy := dramEnergies[pkgID]
 		uncoreEnergy := uncoreEnergies[pkgID]
