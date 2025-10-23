@@ -39,7 +39,7 @@ const (
 	dramEvent    = "dram"
 	coreEvent    = "core"
 	uncoreEvent  = "uncore"
-	packageEvent = "package"
+	packageEvent = "psys"
 )
 
 var (

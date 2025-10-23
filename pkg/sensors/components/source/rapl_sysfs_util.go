@@ -25,6 +25,7 @@ import (
 )
 
 func detectEventPaths() {
+	numPackages += 1 // some pc has the psys package for rapl
 	klog.Info("The number of packages: ", numPackages)
 	for i := 0; i < numPackages; i++ {
 		packagePath := fmt.Sprintf(packageNamePathTemplate, i)
