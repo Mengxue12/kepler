@@ -66,6 +66,8 @@ func InitPowerImpl() {
 		powerImpl = &source.PowerHMC{}
 	} else if redfish := source.NewRedfishClient(); redfish != nil && redfish.IsSystemCollectionSupported() {
 		powerImpl = redfish
+	} else if raplPsys := source.NewPowerRAPLSysfs(); raplPsys != nil && raplPsys.IsSystemCollectionSupported() {
+		powerImpl = raplPsys
 	} else if acpi := source.NewACPIPowerMeter(config.GetMockACPIPowerPath()); acpi != nil && acpi.CollectEnergy {
 		powerImpl = acpi
 	}
