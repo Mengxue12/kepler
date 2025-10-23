@@ -35,7 +35,9 @@ const (
 
 // PowerRAPLSysfs implements platform power collection using RAPL psys
 type PowerRAPLSysfs struct {
-	psysPath string
+	psysPath     string
+	prevEnergyUJ uint64 // previous energy reading in microjoules
+	initialized  bool   // whether we have a previous reading
 }
 
 func NewPowerRAPLSysfs() *PowerRAPLSysfs {
@@ -84,18 +86,46 @@ func (r *PowerRAPLSysfs) GetAbsEnergyFromPlatform() (map[string]float64, error) 
 		return nil, fmt.Errorf("failed to read psys energy: %w", err)
 	}
 
-	energyUJ, err := strconv.ParseUint(strings.TrimSpace(string(data)), 10, 64)
+	currentEnergyUJ, err := strconv.ParseUint(strings.TrimSpace(string(data)), 10, 64)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse psys energy: %w", err)
 	}
 
-	// Convert from microjoules to millijoules
-	energyMJ := float64(energyUJ) / 1000.0
+	// On first call, just store the value and return 0
+	if !r.initialized {
+		r.prevEnergyUJ = currentEnergyUJ
+		r.initialized = true
+		klog.V(6).Infof("RAPL psys initialized with energy: %d uJ", currentEnergyUJ)
+		return map[string]float64{
+			"platform": 0,
+		}, nil
+	}
 
-	klog.V(6).Infof("RAPL psys energy: %f mJ", energyMJ)
+	// Calculate delta energy
+	var deltaEnergyUJ uint64
+	prevEnergyUJ := r.prevEnergyUJ // Save for logging
+
+	if currentEnergyUJ >= r.prevEnergyUJ {
+		deltaEnergyUJ = currentEnergyUJ - r.prevEnergyUJ
+	} else {
+		// Handle counter wraparound
+		// RAPL counters are typically 32-bit or have a known max range
+		klog.V(5).Infof("RAPL psys counter wrapped: prev=%d, current=%d", r.prevEnergyUJ, currentEnergyUJ)
+		// For now, just use the current value as delta after wraparound
+		deltaEnergyUJ = currentEnergyUJ
+	}
+
+	// Update previous value for next call
+	r.prevEnergyUJ = currentEnergyUJ
+
+	// Convert from microjoules to millijoules
+	deltaEnergyMJ := float64(deltaEnergyUJ) / 1000.0
+
+	klog.V(6).Infof("RAPL psys delta energy: %f mJ (from %d to %d uJ, delta: %d uJ)",
+		deltaEnergyMJ, prevEnergyUJ, currentEnergyUJ, deltaEnergyUJ)
 
 	return map[string]float64{
-		"platform": energyMJ,
+		"platform": deltaEnergyMJ,
 	}, nil
 }
 
