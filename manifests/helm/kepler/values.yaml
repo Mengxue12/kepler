@@ -5,7 +5,7 @@
 image:
   repository: quay.io/sustainable_computing_io/kepler
   pullPolicy: IfNotPresent
-  tag: latest
+  tag: v0.11.2
 
 nameOverride: ""
 fullnameOverride: ""
@@ -108,7 +108,7 @@ config:
 
 # ServiceMonitor for Prometheus Operator
 serviceMonitor:
-  enabled: false
+  enabled: true
   interval: 5s
   path: /metrics
   labels: {}
