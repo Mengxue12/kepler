@@ -54,7 +54,9 @@ func createProcessPowerModelConfig(powerSourceTarget string, processFeatureNames
 			pkgUsageMetric := config.CoreUsageMetric
 			coreUsageMetric := config.CoreUsageMetric
 			dramUsageMetric := config.DRAMUsageMetric
-			if !bpfSupportedMetrics.HardwareCounters.Has(config.CPUTime) {
+			// CPUTime will always be a software counter, so the check is not needed
+			// if CoreUsageMetric is a regression metric, the check will always be false
+			if !bpfSupportedMetrics.HardwareCounters.Has(config.CoreUsageMetric) {
 				// Given that there is no HW counter in  some scenarios (e.g. on VMs), we have to use CPUTime data.
 				// Although a busy CPU is more likely to be accessing memory the CPU utilization (CPUTime) does not directly
 				// represent memory access, but it remains the only viable proxy available to approximate such information.
@@ -87,10 +89,12 @@ func createProcessPowerModelConfig(powerSourceTarget string, processFeatureNames
 			}...)
 		} else if powerSourceTarget == config.ProcessPlatformPowerKey {
 			platformUsageMetric := config.CoreUsageMetric
-			if !bpfSupportedMetrics.HardwareCounters.Has(config.CPUTime) {
-				// Given that there is no HW counter in  some scenarios (e.g. on VMs), we have to use CPUTime data.
-				platformUsageMetric = config.CPUTime
-			}
+			// CPUTime will always be a software counter, so the check is not needed
+			// if CoreUsageMetric is a regression metric, the check will always be false
+			// if !bpfSupportedMetrics.HardwareCounters.Has(config.CoreUsageMetric) {
+			// 	// Given that there is no HW counter in  some scenarios (e.g. on VMs), we have to use CPUTime data.
+			// 	platformUsageMetric = config.CPUTime
+			// }
 			modelConfig.ProcessFeatureNames = []string{
 				platformUsageMetric, // for PLATFORM resource usage
 			}
