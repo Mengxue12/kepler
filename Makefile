@@ -31,7 +31,7 @@ GIT_SHA            := $(shell git rev-parse HEAD)
 GIT_BRANCH         := $(shell git rev-parse --abbrev-ref HEAD)
 VERSION            := $(GIT_VERSION)
 ROOTLESS           ?= false
-IMAGE_REPO         ?= quay.io/sustainable_computing_io
+IMAGE_REPO         ?= mengxue12
 BUILDER_IMAGE      ?= quay.io/sustainable_computing_io/kepler_builder:ubi-9-libbpf-1.3.0
 IMAGE_NAME         ?= kepler
 IMAGE_TAG          ?= latest
@@ -63,7 +63,7 @@ LDFLAGS := $(LDFLAGS) \
 		-X main.Arch=$(GOARCH)
 
 DOCKERFILE := $(SRC_ROOT)/build/Dockerfile
-IMAGE_BUILD_TAG := $(GIT_VERSION)-linux-$(GOARCH)
+IMAGE_BUILD_TAG := release-0.7.11-linux-$(shell date +%Y%m%d%H)
 GO_BUILD_TAGS := $(GENERAL_TAGS)$(GOOS)$(GPU_TAGS)
 GO_TEST_TAGS := $(GENERAL_TAGS)$(GOOS)
 

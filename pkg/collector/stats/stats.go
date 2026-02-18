@@ -18,6 +18,7 @@ package stats
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/sustainable-computing-io/kepler/pkg/bpf"
@@ -170,6 +171,83 @@ func normalize(val float64, shouldNormalize bool) float64 {
 	return val
 }
 
+type linearExprTerm struct {
+	coef   float64
+	metric string
+}
+
+func stripAllSpaces(s string) string {
+	// Keep this simple (no unicode categories); metric names here are ascii.
+	s = strings.ReplaceAll(s, " ", "")
+	s = strings.ReplaceAll(s, "\t", "")
+	s = strings.ReplaceAll(s, "\n", "")
+	return s
+}
+
+// parseLinearExpr parses a simple linear expression like:
+//
+//	"bpf_cpu_time_ms+2*cpu_cycles"
+//
+// Grammar:
+//
+//	expr  := term ("+" term)*
+//	term  := (coef "*")? metric
+//	coef  := float (e.g., 2, 2.5, -1)
+//	metric:= a metric name key in Stats.ResourceUsage
+func parseLinearExpr(expr string) ([]linearExprTerm, bool) {
+	expr = stripAllSpaces(expr)
+	if expr == "" {
+		return nil, false
+	}
+	// Only treat it as an expression if it actually contains operators.
+	if !strings.Contains(expr, "+") && !strings.Contains(expr, "*") {
+		return nil, false
+	}
+	parts := strings.Split(expr, "+")
+	terms := make([]linearExprTerm, 0, len(parts))
+	for _, part := range parts {
+		if part == "" {
+			return nil, false
+		}
+		coef := 1.0
+		metric := part
+		if strings.Contains(part, "*") {
+			mul := strings.Split(part, "*")
+			if len(mul) != 2 || mul[0] == "" || mul[1] == "" {
+				return nil, false
+			}
+			parsedCoef, err := strconv.ParseFloat(mul[0], 64)
+			if err != nil {
+				return nil, false
+			}
+			coef = parsedCoef
+			metric = mul[1]
+		}
+		terms = append(terms, linearExprTerm{coef: coef, metric: metric})
+	}
+	if len(terms) == 0 {
+		return nil, false
+	}
+	return terms, true
+}
+
+func (m *Stats) evalResourceUsageExpr(expr string, shouldNormalize bool) (float64, bool) {
+	terms, ok := parseLinearExpr(expr)
+	if !ok {
+		return 0, false
+	}
+	sum := 0.0
+	for _, t := range terms {
+		if usage, exists := m.ResourceUsage[t.metric]; exists {
+			sum += t.coef * float64(usage.SumAllDeltaValues())
+		} else {
+			// Unknown metric in expression; treat as 0 to keep behavior predictable.
+			klog.V(10).Infof("Unknown resource usage metric in expression: %q (expr=%q), using 0", t.metric, expr)
+		}
+	}
+	return normalize(sum, shouldNormalize), true
+}
+
 // ToEstimatorValues return values regarding metricNames.
 // The metrics can be related to resource utilization or power consumption.
 // Since Kepler collects metrics at intervals of SamplePeriodSec, which is greater than 1 second, and the power models are trained to estimate power in 1 second interval,
@@ -177,6 +255,12 @@ func normalize(val float64, shouldNormalize bool) float64 {
 func (m *Stats) ToEstimatorValues(featuresName []string, shouldNormalize bool) []float64 {
 	featureValues := []float64{}
 	for _, feature := range featuresName {
+		// Support linear combinations for resource usage features, e.g.:
+		//   "bpf_cpu_time_ms+2*cpu_cycles"
+		if value, ok := m.evalResourceUsageExpr(feature, shouldNormalize); ok {
+			featureValues = append(featureValues, value)
+			continue
+		}
 		// verify all metrics that are part of the node resource usage metrics
 		if value, exists := m.ResourceUsage[feature]; exists {
 			featureValues = append(featureValues, normalize(float64(value.SumAllDeltaValues()), shouldNormalize))

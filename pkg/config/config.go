@@ -88,7 +88,7 @@ var (
 
 	EstimatorModel        = getConfig("ESTIMATOR_MODEL", defaultMetricValue)         // auto-select
 	EstimatorSelectFilter = getConfig("ESTIMATOR_SELECT_FILTER", defaultMetricValue) // no filter
-	CoreUsageMetric       = getConfig("CORE_USAGE_METRIC", CPUInstruction)
+	CoreUsageMetric       = getConfig("CORE_USAGE_METRIC", CPUInstruction)           // "bpf_cpu_time_ms+2*cpu_cycles"
 	DRAMUsageMetric       = getConfig("DRAM_USAGE_METRIC", CacheMiss)
 	UncoreUsageMetric     = getConfig("UNCORE_USAGE_METRIC", defaultMetricValue)  // no metric (evenly divided)
 	GpuUsageMetric        = getConfig("GPU_USAGE_METRIC", GPUComputeUtilization)  // no metric (evenly divided)
