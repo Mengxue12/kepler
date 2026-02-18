@@ -75,7 +75,7 @@ type RatioPowerModel struct {
 
 func (r *RatioPowerModel) getPowerByRatio(processIdx, resUsageFeature, nodePowerFeature int, numProcesses float64) uint64 {
 	var power float64
-	nodeResUsage := r.nodeFeatureValues[resUsageFeature]
+	nodeResUsage := r.nodeFeatureValues[resUsageFeature] // TODO add regresssion ratio
 	nodePower := r.nodeFeatureValues[nodePowerFeature]
 	if nodeResUsage == 0 || resUsageFeature == int(UncoreUsageMetric) {
 		power = nodePower / numProcesses
