@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: kepler-cfm
+  name: kepler-cfm-rpi
   namespace: system
 data:
   # EXPOSE_COMPONENT_POWER: "false"
@@ -14,7 +14,7 @@ data:
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
-  name: kepler-exporter
+  name: kepler-exporter-rpi
   namespace: system
 spec:
   template:
@@ -85,3 +85,31 @@ spec:
         - name: mnt
           persistentVolumeClaim:
             claimName: kepler-pvc
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: kepler-exporter
+  namespace: system
+spec:
+  selector:
+    matchLabels:
+      kepler.sustainable-computing.io/variant: amd64
+  template:
+    metadata:
+      labels:
+        kepler.sustainable-computing.io/variant: amd64
+    spec:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: kubernetes.io/arch
+                    operator: In
+                    values:
+                      - amd64
+      containers:
+        - name: kepler-exporter
+          image: mengxue12/kepler:release-0.7.11-linux-2025102313
+          imagePullPolicy: IfNotPresent

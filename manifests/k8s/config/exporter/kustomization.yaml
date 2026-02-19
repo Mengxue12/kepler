@@ -1,5 +1,7 @@
 resources:
   - exporter.yaml
+# add this line to deploy rpi daemonset (only for ESTIMATOR_RPI_DEPLOY)
+#  - exporter-rpi.yaml
 # add this line to add persistent volume claim
 #  - pvc.yaml
 # uncomment this line for openshift

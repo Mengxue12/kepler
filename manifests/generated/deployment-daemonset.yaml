@@ -114,14 +114,39 @@ data:
   CPU_ARCH_OVERRIDE: ""
   ENABLE_EBPF_CGROUPID: "true"
   ENABLE_GPU: "false"
-  ENABLE_PROCESS_METRICS: "false"
+  ENABLE_QAT: "false"
+  EXPOSE_CGROUP_METRICS: "false"
+  EXPOSE_HW_COUNTER_METRICS: "true"
+  EXPOSE_IRQ_COUNTER_METRICS: "true"
+  EXPOSE_VM_METRICS: "false"
+  KEPLER_LOG_LEVEL: "8"
+  KEPLER_NAMESPACE: kepler
+  METRIC_PATH: /metrics
+  MODEL_CONFIG: |
+    CONTAINER_COMPONENTS_ESTIMATOR=false
+  PROMETHEUS_SCRAPE_INTERVAL: 3s
+  REDFISH_PROBE_INTERVAL_IN_SECONDS: "60"
+  REDFISH_SKIP_SSL_VERIFY: "true"
+kind: ConfigMap
+metadata:
+  labels:
+    sustainable-computing.io/app: kepler
+  name: kepler-cfm
+  namespace: kepler
+---
+apiVersion: v1
+data:
+  BIND_ADDRESS: 0.0.0.0:9102
+  CPU_ARCH_OVERRIDE: ""
+  ENABLE_EBPF_CGROUPID: "true"
+  ENABLE_GPU: "false"
   ENABLE_QAT: "false"
   EXPOSE_CGROUP_METRICS: "false"
   EXPOSE_ESTIMATED_IDLE_POWER_METRICS: "true"
   EXPOSE_HW_COUNTER_METRICS: "true"
   EXPOSE_IRQ_COUNTER_METRICS: "true"
   EXPOSE_VM_METRICS: "false"
-  KEPLER_LOG_LEVEL: "3"
+  KEPLER_LOG_LEVEL: "8"
   KEPLER_NAMESPACE: kepler
   METRIC_PATH: /metrics
   MODEL_CONFIG: |
@@ -135,7 +160,7 @@ kind: ConfigMap
 metadata:
   labels:
     sustainable-computing.io/app: kepler
-  name: kepler-cfm
+  name: kepler-cfm-rpi
   namespace: kepler
 ---
 apiVersion: v1
@@ -217,14 +242,141 @@ spec:
     matchLabels:
       app.kubernetes.io/component: exporter
       app.kubernetes.io/name: kepler-exporter
+      kepler.sustainable-computing.io/variant: amd64
       sustainable-computing.io/app: kepler
   template:
     metadata:
       labels:
         app.kubernetes.io/component: exporter
         app.kubernetes.io/name: kepler-exporter
+        kepler.sustainable-computing.io/variant: amd64
         sustainable-computing.io/app: kepler
     spec:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: kubernetes.io/arch
+                operator: In
+                values:
+                - amd64
+      containers:
+      - args:
+        - /usr/bin/kepler -v=8 -redfish-cred-file-path=/etc/redfish/redfish.csv
+        command:
+        - /bin/sh
+        - -c
+        env:
+        - name: NODE_IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.hostIP
+        - name: NODE_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: spec.nodeName
+        image: mengxue12/kepler:release-0.7.11-linux-2025102313
+        imagePullPolicy: IfNotPresent
+        livenessProbe:
+          failureThreshold: 5
+          httpGet:
+            path: /healthz
+            port: 9102
+            scheme: HTTP
+          initialDelaySeconds: 10
+          periodSeconds: 60
+          successThreshold: 1
+          timeoutSeconds: 10
+        name: kepler-exporter
+        ports:
+        - containerPort: 9102
+          name: http
+        resources:
+          requests:
+            cpu: 100m
+            memory: 400Mi
+        securityContext:
+          privileged: true
+        volumeMounts:
+        - mountPath: /lib/modules
+          name: lib-modules
+          readOnly: true
+        - mountPath: /sys
+          name: tracing
+          readOnly: true
+        - mountPath: /proc
+          name: proc
+        - mountPath: /var/run
+          name: var-run
+        - mountPath: /etc/kepler/kepler.config
+          name: cfm
+          readOnly: true
+        - mountPath: /etc/redfish
+          name: redfish
+          readOnly: true
+      dnsPolicy: ClusterFirstWithHostNet
+      hostPID: true
+      serviceAccountName: kepler-sa
+      tolerations:
+      - effect: NoSchedule
+        key: node-role.kubernetes.io/master
+      volumes:
+      - hostPath:
+          path: /lib/modules
+          type: Directory
+        name: lib-modules
+      - hostPath:
+          path: /sys
+          type: Directory
+        name: tracing
+      - hostPath:
+          path: /proc
+          type: Directory
+        name: proc
+      - hostPath:
+          path: /var/run
+          type: Directory
+        name: var-run
+      - configMap:
+          name: kepler-cfm
+        name: cfm
+      - name: redfish
+        secret:
+          secretName: redfish-4kh9d7bc7m
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  labels:
+    sustainable-computing.io/app: kepler
+  name: kepler-exporter-rpi
+  namespace: kepler
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: exporter
+      app.kubernetes.io/name: kepler-exporter
+      kepler.sustainable-computing.io/variant: rpi
+      sustainable-computing.io/app: kepler
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/component: exporter
+        app.kubernetes.io/name: kepler-exporter
+        kepler.sustainable-computing.io/variant: rpi
+        sustainable-computing.io/app: kepler
+    spec:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: kubernetes.io/arch
+                operator: In
+                values:
+                - arm64
+                - arm
       containers:
       - args:
         - until [ -e /tmp/estimator.sock ]; do sleep 1; done && /usr/bin/kepler -v=8
@@ -326,7 +478,7 @@ spec:
           type: Directory
         name: var-run
       - configMap:
-          name: kepler-cfm
+          name: kepler-cfm-rpi
         name: cfm
       - name: redfish
         secret:

@@ -151,6 +151,7 @@ deploy_estimator_rpi(){
 		return 0
 	}
 	uncomment_patch estimator-rpi "${MANIFESTS_OUT_DIR}"/exporter/kustomization.yaml
+	uncomment exporter-rpi.yaml "${MANIFESTS_OUT_DIR}"/exporter/kustomization.yaml
 	ok "Estimator RPI deployment configured"
 }
 deploy_PVC(){
