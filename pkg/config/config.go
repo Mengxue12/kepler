@@ -56,7 +56,7 @@ const (
 	MaxIRQ = 10
 
 	// defaultSamplePeriodSec is the time in seconds that the reader will wait before reading the metrics again
-	defaultSamplePeriodSec = 3
+	defaultSamplePeriodSec = 1
 )
 
 var (

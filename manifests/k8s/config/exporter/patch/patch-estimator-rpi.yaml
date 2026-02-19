@@ -64,7 +64,8 @@ spec:
             - mountPath: /tmp
               name: tmp
           name: kepler-exporter
-          image: mengxue12/kepler:release-0.7.11-linux-2025102313
+          # image: mengxue12/kepler:release-0.7.11-linux-2025102313
+          image: mengxue12/kepler:release-0.7.11-linux-2026021917
           imagePullPolicy: IfNotPresent
         - image: mengxue12/kepler_model_server:v0.7.11-2-20250403
           imagePullPolicy: IfNotPresent
@@ -111,5 +112,6 @@ spec:
                       - amd64
       containers:
         - name: kepler-exporter
-          image: mengxue12/kepler:release-0.7.11-linux-2025102313
+          # image: mengxue12/kepler:release-0.7.11-linux-2025102313
+          image: mengxue12/kepler:release-0.7.11-linux-2026021917
           imagePullPolicy: IfNotPresent
