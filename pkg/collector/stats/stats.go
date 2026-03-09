@@ -69,6 +69,9 @@ func NewStats(bpfSupportedMetrics bpf.SupportedMetrics) *Stats {
 	for _, metricName := range resMetrics {
 		m.ResourceUsage[metricName] = types.NewUInt64StatCollection()
 	}
+	// Disk metrics can be collected directly from cgroup/procfs without process-level BPF counters.
+	m.ResourceUsage[config.DiskRead] = types.NewUInt64StatCollection()
+	m.ResourceUsage[config.DiskWrite] = types.NewUInt64StatCollection()
 
 	if config.EnabledGPU && gpu.IsGPUCollectionSupported() {
 		m.ResourceUsage[config.GPUComputeUtilization] = types.NewUInt64StatCollection()

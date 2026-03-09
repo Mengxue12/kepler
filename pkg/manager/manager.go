@@ -44,6 +44,11 @@ type CollectorManager struct {
 func New(bpfExporter bpf.Exporter) *CollectorManager {
 	manager := &CollectorManager{}
 	supportedMetrics := bpfExporter.SupportedMetrics()
+	supportedMetrics = bpf.SupportedMetrics{
+		HardwareCounters: supportedMetrics.HardwareCounters.Clone(),
+		SoftwareCounters: supportedMetrics.SoftwareCounters.Clone(),
+	}
+	supportedMetrics.SoftwareCounters.Insert(config.DiskRead, config.DiskWrite)
 	manager.StatsCollector = collector.NewCollector(bpfExporter)
 	manager.PrometheusCollector = exporter.NewPrometheusExporter(supportedMetrics)
 	// the collector and prometheusExporter share structures and collections

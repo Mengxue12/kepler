@@ -38,6 +38,8 @@ const (
 	IRQNetTXLabel = "bpf_net_tx_irq"
 	IRQNetRXLabel = "bpf_net_rx_irq"
 	IRQBlockLabel = "bpf_block_irq"
+	DiskRead  = "disk_read"
+	DiskWrite = "disk_write"
 
 	// NVIDIA GPU
 	GPUComputeUtilization = "gpu_compute_util"

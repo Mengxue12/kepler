@@ -27,6 +27,7 @@ import (
 	"github.com/sustainable-computing-io/kepler/pkg/collector/energy"
 	"github.com/sustainable-computing-io/kepler/pkg/collector/resourceutilization/accelerator"
 	resourceBpf "github.com/sustainable-computing-io/kepler/pkg/collector/resourceutilization/bpf"
+	resourceDisk "github.com/sustainable-computing-io/kepler/pkg/collector/resourceutilization/disk"
 	"github.com/sustainable-computing-io/kepler/pkg/collector/stats"
 	"github.com/sustainable-computing-io/kepler/pkg/config"
 	"github.com/sustainable-computing-io/kepler/pkg/model"
@@ -64,6 +65,11 @@ type Collector struct {
 
 func NewCollector(bpfExporter bpf.Exporter) *Collector {
 	bpfSupportedMetrics := bpfExporter.SupportedMetrics()
+	bpfSupportedMetrics = bpf.SupportedMetrics{
+		HardwareCounters: bpfSupportedMetrics.HardwareCounters.Clone(),
+		SoftwareCounters: bpfSupportedMetrics.SoftwareCounters.Clone(),
+	}
+	bpfSupportedMetrics.SoftwareCounters.Insert(config.DiskRead, config.DiskWrite)
 	c := &Collector{
 		NodeStats:           *stats.NewNodeStats(bpfSupportedMetrics),
 		ContainerStats:      map[string]*stats.ContainerStats{},
@@ -151,6 +157,8 @@ func (c *Collector) updateResourceUtilizationMetrics() {
 	wg.Wait()
 	// aggregate processes' resource utilization metrics to containers, virtual machines and nodes
 	c.AggregateProcessResourceUtilizationMetrics()
+	resourceDisk.UpdateContainerDiskIOMetrics(c.ContainerStats)
+	resourceDisk.UpdateNodeDiskIOMetrics(&c.NodeStats)
 }
 
 // update the node metrics that are not related to aggregated resource utilization of processes
