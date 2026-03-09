@@ -177,7 +177,7 @@ func (e *exporter) attach() error {
 		return nil
 	}
 
-	// Create perf events and update each eBPF map
+	// Create perf hardware events and update each eBPF map
 	e.cpuCyclesPerfEvents, err = unixOpenPerfEvent(unix.PERF_TYPE_HARDWARE, unix.PERF_COUNT_HW_CPU_CYCLES, numCPU)
 	if err != nil {
 		klog.Warning("Failed to open perf event for CPU cycles: ", err)
