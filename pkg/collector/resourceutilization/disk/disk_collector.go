@@ -50,11 +50,26 @@ func UpdateContainerDiskIOMetrics(containerStats map[string]*stats.ContainerStat
 	mx.Lock()
 	defer mx.Unlock()
 
+	var totalNonSystemReadDelta uint64
+	var totalNonSystemWriteDelta uint64
+	seenCgroupPaths := map[string]bool{}
+
 	for _, cStat := range containerStats {
+		if cStat.ContainerID == utils.SystemProcessName {
+			// Handle system_processes as residual (node - non-system containers) later.
+			continue
+		}
+
 		cgroupPath := resolveContainerCgroupPath(cStat)
 		if cgroupPath == "" {
 			continue
 		}
+		if seenCgroupPaths[cgroupPath] {
+			klog.V(6).Infof("skip duplicate cgroup path %s for container %s", cgroupPath, cStat.ContainerID)
+			continue
+		}
+		seenCgroupPaths[cgroupPath] = true
+
 		readBytes, writeBytes, err := parseCgroupIOStat(cgroupPath)
 		if err != nil {
 			klog.V(6).Infof("failed to parse io.stat for cgroup %s: %v", cgroupPath, err)
@@ -67,11 +82,46 @@ func UpdateContainerDiskIOMetrics(containerStats map[string]*stats.ContainerStat
 		prevContainerWriteBytes[cgroupPath] = writeBytes
 
 		if readBytes >= prevRead {
-			cStat.ResourceUsage[config.DiskRead].AddDeltaStat(utils.GenericSocketID, readBytes-prevRead)
+			readDelta := readBytes - prevRead
+			cStat.ResourceUsage[config.DiskRead].AddDeltaStat(utils.GenericSocketID, readDelta)
+			totalNonSystemReadDelta += readDelta
 		}
 		if writeBytes >= prevWrite {
-			cStat.ResourceUsage[config.DiskWrite].AddDeltaStat(utils.GenericSocketID, writeBytes-prevWrite)
+			writeDelta := writeBytes - prevWrite
+			cStat.ResourceUsage[config.DiskWrite].AddDeltaStat(utils.GenericSocketID, writeDelta)
+			totalNonSystemWriteDelta += writeDelta
 		}
+	}
+
+	// Derive system_processes as residual to avoid overlap with container cgroup trees.
+	systemStat, ok := containerStats[utils.SystemProcessName]
+	if !ok {
+		return
+	}
+
+	nodeReadBytes, nodeWriteBytes, err := getNodeDiskBytes()
+	if err != nil {
+		klog.V(6).Infof("failed to derive system process disk io from node stats: %v", err)
+		return
+	}
+	var nodeReadDelta uint64
+	var nodeWriteDelta uint64
+	if nodeReadBytes >= prevNodeReadBytes {
+		nodeReadDelta = nodeReadBytes - prevNodeReadBytes
+	}
+	if nodeWriteBytes >= prevNodeWriteBytes {
+		nodeWriteDelta = nodeWriteBytes - prevNodeWriteBytes
+	}
+
+	if nodeReadDelta > totalNonSystemReadDelta {
+		systemStat.ResourceUsage[config.DiskRead].AddDeltaStat(utils.GenericSocketID, nodeReadDelta-totalNonSystemReadDelta)
+	}
+	if nodeWriteDelta > totalNonSystemWriteDelta {
+		systemStat.ResourceUsage[config.DiskWrite].AddDeltaStat(utils.GenericSocketID, nodeWriteDelta-totalNonSystemWriteDelta)
+	}
+	if nodeReadDelta < totalNonSystemReadDelta || nodeWriteDelta < totalNonSystemWriteDelta {
+		klog.V(6).Infof("non-system container disk delta exceeds node delta (node read=%d write=%d, non-system read=%d write=%d)",
+			nodeReadDelta, nodeWriteDelta, totalNonSystemReadDelta, totalNonSystemWriteDelta)
 	}
 }
 
