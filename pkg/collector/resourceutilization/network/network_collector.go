@@ -20,6 +20,7 @@ import (
 	"bufio"
 	"fmt"
 	"os"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -47,14 +48,25 @@ func UpdateContainerNetworkMetrics(containerStats map[string]*stats.ContainerSta
 	defer mx.Unlock()
 
 	for containerID, cStat := range containerStats {
-		pid, ok := getAnyPID(cStat)
+		pids, pidNetNSMap, ok := getOnePIDPerNetNS(cStat)
 		if !ok {
 			continue
 		}
+		klog.V(6).Infof("pod/container %s/%s %s selected pids[network namespace]: %v", cStat.PodName, cStat.ContainerName, containerID, pidNetNSMap)
 
-		rxBytes, txBytes, err := getNetDevBytes(fmt.Sprintf("/proc/%d/net/dev", pid), true)
-		if err != nil {
-			klog.V(6).Infof("failed to read net stats for container %s pid %d: %v", containerID, pid, err)
+		var rxBytes, txBytes uint64
+		reads := 0
+		for _, pid := range pids {
+			pidRxBytes, pidTxBytes, err := getNetDevBytes(fmt.Sprintf("/proc/%d/net/dev", pid), true)
+			if err != nil {
+				klog.V(6).Infof("failed to read net stats for container %s pid %d: %v", containerID, pid, err)
+				continue
+			}
+			rxBytes += pidRxBytes
+			txBytes += pidTxBytes
+			reads++
+		}
+		if reads == 0 {
 			continue
 		}
 
@@ -84,20 +96,51 @@ func UpdateNodeNetworkMetrics(nodeStats *stats.NodeStats) {
 
 	if rxBytes >= prevNodeRxBytes {
 		nodeStats.ResourceUsage[config.NetRX].AddDeltaStat(utils.GenericSocketID, rxBytes-prevNodeRxBytes)
+	} else {
+		klog.V(6).Infof("node network RX bytes decreased: %d -> %d", prevNodeRxBytes, rxBytes)
 	}
 	if txBytes >= prevNodeTxBytes {
 		nodeStats.ResourceUsage[config.NetTX].AddDeltaStat(utils.GenericSocketID, txBytes-prevNodeTxBytes)
+	} else {
+		klog.V(6).Infof("node network TX bytes decreased: %d -> %d", prevNodeTxBytes, txBytes)
 	}
 
 	prevNodeRxBytes = rxBytes
 	prevNodeTxBytes = txBytes
 }
 
-func getAnyPID(cStat *stats.ContainerStats) (uint64, bool) {
+func getOnePIDPerNetNS(cStat *stats.ContainerStats) ([]uint64, map[uint64]string, bool) {
+	pidByNetNS := map[string]uint64{}
 	for pid := range cStat.PIDS {
-		return pid, true
+		netNSID, ok := getNetNSID(pid)
+		if !ok {
+			continue
+		}
+		if existingPID, exists := pidByNetNS[netNSID]; !exists || pid < existingPID {
+			pidByNetNS[netNSID] = pid
+		}
 	}
-	return 0, false
+	if len(pidByNetNS) == 0 {
+		return nil, nil, false
+	}
+	pids := make([]uint64, 0, len(pidByNetNS))
+	pidNetNSMap := make(map[uint64]string, len(pidByNetNS))
+	for _, pid := range pidByNetNS {
+		pids = append(pids, pid)
+	}
+	for netNSID, pid := range pidByNetNS {
+		pidNetNSMap[pid] = netNSID
+	}
+	sort.Slice(pids, func(i, j int) bool { return pids[i] < pids[j] })
+	return pids, pidNetNSMap, true
+}
+
+func getNetNSID(pid uint64) (string, bool) {
+	netNSLink, err := os.Readlink(fmt.Sprintf("/proc/%d/ns/net", pid))
+	if err != nil {
+		return "", false
+	}
+	return netNSLink, true
 }
 
 func getNetDevBytes(path string, skipLoopback bool) (uint64, uint64, error) {
