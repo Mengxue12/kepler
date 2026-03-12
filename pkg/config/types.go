@@ -38,6 +38,10 @@ const (
 	IRQNetTXLabel = "bpf_net_tx_irq"
 	IRQNetRXLabel = "bpf_net_rx_irq"
 	IRQBlockLabel = "bpf_block_irq"
+
+	NetRX = "net_rx"
+	NetTX = "net_tx"
+
 	DiskRead  = "disk_read"
 	DiskWrite = "disk_write"
 

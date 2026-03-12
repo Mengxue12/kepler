@@ -48,7 +48,10 @@ func New(bpfExporter bpf.Exporter) *CollectorManager {
 		HardwareCounters: supportedMetrics.HardwareCounters.Clone(),
 		SoftwareCounters: supportedMetrics.SoftwareCounters.Clone(),
 	}
-	supportedMetrics.SoftwareCounters.Insert(config.DiskRead, config.DiskWrite)
+	supportedMetrics.SoftwareCounters.Insert(
+		config.DiskRead, config.DiskWrite,
+		config.NetRX, config.NetTX,
+	)
 	manager.StatsCollector = collector.NewCollector(bpfExporter)
 	manager.PrometheusCollector = exporter.NewPrometheusExporter(supportedMetrics)
 	// the collector and prometheusExporter share structures and collections

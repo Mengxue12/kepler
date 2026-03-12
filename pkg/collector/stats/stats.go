@@ -72,6 +72,9 @@ func NewStats(bpfSupportedMetrics bpf.SupportedMetrics) *Stats {
 	// Disk metrics can be collected directly from cgroup/procfs without process-level BPF counters.
 	m.ResourceUsage[config.DiskRead] = types.NewUInt64StatCollection()
 	m.ResourceUsage[config.DiskWrite] = types.NewUInt64StatCollection()
+	// Network metrics can be collected directly from /proc without process-level BPF counters.
+	m.ResourceUsage[config.NetRX] = types.NewUInt64StatCollection()
+	m.ResourceUsage[config.NetTX] = types.NewUInt64StatCollection()
 
 	if config.EnabledGPU && gpu.IsGPUCollectionSupported() {
 		m.ResourceUsage[config.GPUComputeUtilization] = types.NewUInt64StatCollection()
