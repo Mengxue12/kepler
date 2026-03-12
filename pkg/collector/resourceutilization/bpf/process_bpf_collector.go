@@ -105,6 +105,8 @@ func UpdateProcessBPFMetrics(bpfExporter bpf.Exporter, processStats map[uint64]*
 		containerID, err := cgroup.GetContainerID(ct.CgroupId, ct.Pid, config.EnabledEBPFCgroupID)
 		if err != nil {
 			klog.V(6).Infof("failed to resolve container for PID %v (command=%s): %v, set containerID=%s", ct.Pid, comm, err, utils.SystemProcessName)
+		} else {
+			klog.V(6).Infof("container ID for PID %v (command=%s): %s", ct.Pid, comm, containerID)
 		}
 
 		// if the pid is within a VM, it will have an VM ID

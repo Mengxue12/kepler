@@ -44,6 +44,10 @@ func (c *Collector) createContainerStatsIfNotExist(containerID string, cGroupID,
 				// some kernel processes have cgroup id equal 1 or 0
 				name = utils.KernelProcessName
 				namespace = utils.KernelProcessNamespace
+			} else if utils.IsLikelyRuntimeID(containerID) {
+				// Runtime IDs unresolved by watcher are typically sandbox-level IDs.
+				name = utils.SandboxProcessName
+				namespace = utils.SandboxProcessNamespace
 			}
 			// We feel the info with generic values because the watcher will eventually update it.
 			c.ContainerStats[containerID] = stats.NewContainerStats(

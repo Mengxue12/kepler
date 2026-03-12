@@ -96,6 +96,13 @@ func GetContainerInfo(cGroupID, pid uint64, withCGroupID bool) (*ContainerInfo, 
 		return i, nil
 	} else {
 		info.ContainerID = containerID
+		// If we can parse a runtime-style 64-char ID but do not yet have pod/container
+		// metadata, treat it as sandbox-level attribution instead of system processes.
+		if utils.IsLikelyRuntimeID(containerID) {
+			info.ContainerName = utils.SandboxProcessName
+			info.PodName = utils.SandboxProcessName
+			info.Namespace = utils.SandboxProcessNamespace
+		}
 		containerIDToContainerInfo[containerID] = info
 	}
 	return containerIDToContainerInfo[containerID], nil

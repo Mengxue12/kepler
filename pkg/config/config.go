@@ -72,7 +72,7 @@ var (
 	EnabledQAT                   = getBoolConfig("ENABLE_QAT", false)
 	EnableProcessStats           = getBoolConfig("ENABLE_PROCESS_METRICS", false)
 	ExposeContainerStats         = getBoolConfig("EXPOSE_CONTAINER_METRICS", true)
-	ExposeVMStats                = getBoolConfig("EXPOSE_VM_METRICS", true)
+	ExposeVMStats                = getBoolConfig("EXPOSE_VM_METRICS", false)
 	ExposeHardwareCounterMetrics = getBoolConfig("EXPOSE_HW_COUNTER_METRICS", true)
 	ExposeIRQCounterMetrics      = getBoolConfig("EXPOSE_IRQ_COUNTER_METRICS", true)
 	ExposeBPFMetrics             = getBoolConfig("EXPOSE_BPF_METRICS", true)

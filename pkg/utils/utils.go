@@ -60,14 +60,31 @@ func DetermineHostByteOrder() binary.ByteOrder {
 }
 
 const (
-	KernelProcessName      string = "kernel_processes"
-	KernelProcessNamespace string = "kernel"
-	SystemProcessName      string = "system_processes"
-	SystemProcessNamespace string = "system"
-	EmptyString            string = ""
-	GenericSocketID        string = "socket0"
-	GenericGPUID           string = "gpu"
+	KernelProcessName       string = "kernel_processes"
+	KernelProcessNamespace  string = "kernel"
+	SandboxProcessName      string = "sandbox_processes"
+	SandboxProcessNamespace string = "sandbox"
+	SystemProcessName       string = "system_processes"
+	SystemProcessNamespace  string = "system"
+	EmptyString             string = ""
+	GenericSocketID         string = "socket0"
+	GenericGPUID            string = "gpu"
 )
+
+// IsLikelyRuntimeID checks if the identifier has the common 64-char hex shape
+// used by container runtimes for container/sandbox IDs.
+func IsLikelyRuntimeID(id string) bool {
+	if len(id) != 64 {
+		return false
+	}
+	for i := 0; i < len(id); i++ {
+		c := id[i]
+		if !((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f')) {
+			return false
+		}
+	}
+	return true
+}
 
 func GetPathFromPID(searchPath string, pid uint64) (string, error) {
 	path := fmt.Sprintf(searchPath, pid)
