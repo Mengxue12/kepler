@@ -18,6 +18,7 @@ package utils
 
 import (
 	"strconv"
+	"strings"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sustainable-computing-io/kepler/pkg/bpf"
@@ -164,6 +165,31 @@ func CollectResUtil(ch chan<- prometheus.Metric, instance interface{}, metricNam
 	switch v := instance.(type) {
 	case *stats.ContainerStats:
 		container := instance.(*stats.ContainerStats)
+		if metricName == config.NetRX || metricName == config.NetTX {
+			if _, exist := container.ResourceUsage[metricName]; !exist {
+				klog.Errorf("ContainerStats %s does not have metric %s\n", container.ContainerID, metricName)
+				return
+			}
+			for netID, utilization := range container.ResourceUsage[metricName] {
+				netns, iface, ok := parseNetUsageID(netID)
+				if !ok {
+					// Keep backwards compatibility for any unexpected IDs.
+					netns = "unknown"
+					iface = netID
+				}
+				value = float64(utilization.GetAggr())
+				labelValues = []string{
+					container.ContainerID,
+					container.PodName,
+					container.ContainerName,
+					container.Namespace,
+					netns,
+					iface,
+				}
+				collect(ch, collector, value, labelValues)
+			}
+			return
+		}
 		// special case for GPU devices, the metrics are reported per device
 		isGPUMetric := false
 		for _, m := range consts.GPUMetricNames {
@@ -207,7 +233,16 @@ func CollectResUtil(ch chan<- prometheus.Metric, instance interface{}, metricNam
 			klog.V(5).Infof("NodeStats %s has resource metric %s\n", stats.NodeName, metricName)
 			for deviceID, utilization := range node.ResourceUsage[metricName] {
 				value = float64(utilization.GetAggr())
-				labelValues = []string{deviceID, stats.NodeName}
+				if metricName == config.NetRX || metricName == config.NetTX {
+					netns, iface, ok := parseNetUsageID(deviceID)
+					if !ok {
+						netns = "unknown"
+						iface = deviceID
+					}
+					labelValues = []string{iface, stats.NodeName, netns, iface}
+				} else {
+					labelValues = []string{deviceID, stats.NodeName}
+				}
 				collect(ch, collector, value, labelValues)
 			}
 		} else {
@@ -217,4 +252,12 @@ func CollectResUtil(ch chan<- prometheus.Metric, instance interface{}, metricNam
 	default:
 		klog.Errorf("Type %T is not supported.\n", v)
 	}
+}
+
+func parseNetUsageID(id string) (string, string, bool) {
+	parts := strings.SplitN(id, "|", 2)
+	if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
+		return "", "", false
+	}
+	return parts[0], parts[1], true
 }

@@ -27,20 +27,19 @@ import (
 
 	"github.com/sustainable-computing-io/kepler/pkg/collector/stats"
 	"github.com/sustainable-computing-io/kepler/pkg/config"
-	"github.com/sustainable-computing-io/kepler/pkg/utils"
 	"k8s.io/klog/v2"
 )
 
 var (
 	mx sync.Mutex
 
-	// Previous cumulative /proc/<pid>/net/dev values by container ID.
-	prevContainerRxBytes = map[string]uint64{}
-	prevContainerTxBytes = map[string]uint64{}
+	// Previous cumulative /proc/<pid>/net/dev values by container ID and netns/interface.
+	prevContainerRxBytes = map[string]map[string]uint64{}
+	prevContainerTxBytes = map[string]map[string]uint64{}
 
-	// Previous cumulative /proc/net/dev values.
-	prevNodeRxBytes uint64
-	prevNodeTxBytes uint64
+	// Previous cumulative /proc/net/dev values by netns/interface.
+	prevNodeRxBytes = map[string]uint64{}
+	prevNodeTxBytes = map[string]uint64{}
 )
 
 func UpdateContainerNetworkMetrics(containerStats map[string]*stats.ContainerStats) {
@@ -54,32 +53,46 @@ func UpdateContainerNetworkMetrics(containerStats map[string]*stats.ContainerSta
 		}
 		klog.V(6).Infof("pod/container %s/%s %s selected pids[network namespace]: %v", cStat.PodName, cStat.ContainerName, containerID, pidNetNSMap)
 
-		var rxBytes, txBytes uint64
+		currRxByID := map[string]uint64{}
+		currTxByID := map[string]uint64{}
 		reads := 0
 		for _, pid := range pids {
-			pidRxBytes, pidTxBytes, err := getNetDevBytes(fmt.Sprintf("/proc/%d/net/dev", pid), true)
+			netNSID := pidNetNSMap[pid]
+			perInterfaceStats, err := getNetDevStats(fmt.Sprintf("/proc/%d/net/dev", pid), netNSID, true)
 			if err != nil {
 				klog.V(6).Infof("failed to read net stats for container %s pid %d: %v", containerID, pid, err)
 				continue
 			}
-			rxBytes += pidRxBytes
-			txBytes += pidTxBytes
+			for usageID, io := range perInterfaceStats {
+				currRxByID[usageID] += io.rx
+				currTxByID[usageID] += io.tx
+			}
 			reads++
 		}
-		if reads == 0 {
+		if reads == 0 || len(currRxByID) == 0 {
 			continue
 		}
 
-		prevRx := prevContainerRxBytes[containerID]
-		prevTx := prevContainerTxBytes[containerID]
-		prevContainerRxBytes[containerID] = rxBytes
-		prevContainerTxBytes[containerID] = txBytes
-
-		if rxBytes >= prevRx {
-			cStat.ResourceUsage[config.NetRX].AddDeltaStat(utils.GenericSocketID, rxBytes-prevRx)
+		if _, exists := prevContainerRxBytes[containerID]; !exists {
+			prevContainerRxBytes[containerID] = map[string]uint64{}
 		}
-		if txBytes >= prevTx {
-			cStat.ResourceUsage[config.NetTX].AddDeltaStat(utils.GenericSocketID, txBytes-prevTx)
+		if _, exists := prevContainerTxBytes[containerID]; !exists {
+			prevContainerTxBytes[containerID] = map[string]uint64{}
+		}
+
+		for usageID, currRx := range currRxByID {
+			prevRx := prevContainerRxBytes[containerID][usageID]
+			prevContainerRxBytes[containerID][usageID] = currRx
+			if currRx >= prevRx {
+				cStat.ResourceUsage[config.NetRX].AddDeltaStat(usageID, currRx-prevRx)
+			}
+		}
+		for usageID, currTx := range currTxByID {
+			prevTx := prevContainerTxBytes[containerID][usageID]
+			prevContainerTxBytes[containerID][usageID] = currTx
+			if currTx >= prevTx {
+				cStat.ResourceUsage[config.NetTX].AddDeltaStat(usageID, currTx-prevTx)
+			}
 		}
 	}
 }
@@ -88,25 +101,34 @@ func UpdateNodeNetworkMetrics(nodeStats *stats.NodeStats) {
 	mx.Lock()
 	defer mx.Unlock()
 
-	rxBytes, txBytes, err := getNetDevBytes("/proc/net/dev", true)
+	nodeNetNS, ok := getNetNSID(1)
+	if !ok {
+		nodeNetNS = "unknown"
+	}
+	perInterfaceStats, err := getNetDevStats("/proc/net/dev", nodeNetNS, true)
 	if err != nil {
 		klog.V(3).Infof("failed to read /proc/net/dev: %v", err)
 		return
 	}
 
-	if rxBytes >= prevNodeRxBytes {
-		nodeStats.ResourceUsage[config.NetRX].AddDeltaStat(utils.GenericSocketID, rxBytes-prevNodeRxBytes)
-	} else {
-		klog.V(6).Infof("node network RX bytes decreased: %d -> %d", prevNodeRxBytes, rxBytes)
+	for usageID, io := range perInterfaceStats {
+		prevRx := prevNodeRxBytes[usageID]
+		if io.rx >= prevRx {
+			nodeStats.ResourceUsage[config.NetRX].AddDeltaStat(usageID, io.rx-prevRx)
+		} else {
+			klog.V(6).Infof("node network RX bytes decreased for %s: %d -> %d", usageID, prevRx, io.rx)
+		}
+		prevNodeRxBytes[usageID] = io.rx
 	}
-	if txBytes >= prevNodeTxBytes {
-		nodeStats.ResourceUsage[config.NetTX].AddDeltaStat(utils.GenericSocketID, txBytes-prevNodeTxBytes)
-	} else {
-		klog.V(6).Infof("node network TX bytes decreased: %d -> %d", prevNodeTxBytes, txBytes)
+	for usageID, io := range perInterfaceStats {
+		prevTx := prevNodeTxBytes[usageID]
+		if io.tx >= prevTx {
+			nodeStats.ResourceUsage[config.NetTX].AddDeltaStat(usageID, io.tx-prevTx)
+		} else {
+			klog.V(6).Infof("node network TX bytes decreased for %s: %d -> %d", usageID, prevTx, io.tx)
+		}
+		prevNodeTxBytes[usageID] = io.tx
 	}
-
-	prevNodeRxBytes = rxBytes
-	prevNodeTxBytes = txBytes
 }
 
 func getOnePIDPerNetNS(cStat *stats.ContainerStats) ([]uint64, map[uint64]string, bool) {
@@ -143,15 +165,20 @@ func getNetNSID(pid uint64) (string, bool) {
 	return netNSLink, true
 }
 
-func getNetDevBytes(path string, skipLoopback bool) (uint64, uint64, error) {
+type netDevCounter struct {
+	rx uint64
+	tx uint64
+}
+
+func getNetDevStats(path, netNSID string, skipLoopback bool) (map[string]netDevCounter, error) {
 	f, err := os.Open(path)
 	if err != nil {
-		return 0, 0, err
+		return nil, err
 	}
 	defer f.Close()
 
 	scanner := bufio.NewScanner(f)
-	var rxTotal, txTotal uint64
+	result := map[string]netDevCounter{}
 	lineNum := 0
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
@@ -184,11 +211,15 @@ func getNetDevBytes(path string, skipLoopback bool) (uint64, uint64, error) {
 		if err != nil {
 			continue
 		}
-		rxTotal += rx
-		txTotal += tx
+		usageID := getNetUsageID(netNSID, iface)
+		result[usageID] = netDevCounter{rx: rx, tx: tx}
 	}
 	if err := scanner.Err(); err != nil {
-		return 0, 0, err
+		return nil, err
 	}
-	return rxTotal, txTotal, nil
+	return result, nil
+}
+
+func getNetUsageID(netNSID, iface string) string {
+	return netNSID + "|" + iface
 }

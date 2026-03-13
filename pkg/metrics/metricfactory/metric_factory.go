@@ -108,11 +108,19 @@ func resMetricsPromDesc(context, name, source string) (desc *prometheus.Desc) {
 	case "process":
 		labels = consts.ProcessResUtilLabels
 	case "container":
-		labels = consts.ContainerResUtilLabels
+		if name == config.NetRX || name == config.NetTX {
+			labels = consts.ContainerNetResUtilLabels
+		} else {
+			labels = consts.ContainerResUtilLabels
+		}
 	case "vm":
 		labels = consts.VMResUtilLabels
 	case "node":
-		labels = consts.NodeResUtilLabels
+		if name == config.NetRX || name == config.NetTX {
+			labels = consts.NodeNetResUtilLabels
+		} else {
+			labels = consts.NodeResUtilLabels
+		}
 	default:
 		klog.Errorf("Unexpected prometheus context: %s", context)
 		return

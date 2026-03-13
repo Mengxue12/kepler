@@ -34,11 +34,13 @@ var (
 	NodeEnergyLabels      = []string{"package", "instance", "mode"}
 
 	// Resource utilization related metric labels
-	ProcessResUtilLabels   = []string{"pid", "container_id", "vm_id", "command"}
-	ContainerResUtilLabels = []string{"container_id", "pod_name", "container_name", "container_namespace"}
-	VMResUtilLabels        = []string{"vm_id"}
-	NodeResUtilLabels      = []string{"device", "instance"}
-	GPUResUtilLabels       = []string{"gpu_id"}
+	ProcessResUtilLabels      = []string{"pid", "container_id", "vm_id", "command"}
+	ContainerResUtilLabels    = []string{"container_id", "pod_name", "container_name", "container_namespace"}
+	ContainerNetResUtilLabels = []string{"container_id", "pod_name", "container_name", "container_namespace", "netns", "interface"}
+	VMResUtilLabels           = []string{"vm_id"}
+	NodeResUtilLabels         = []string{"device", "instance"}
+	NodeNetResUtilLabels      = []string{"device", "instance", "netns", "interface"}
+	GPUResUtilLabels          = []string{"gpu_id"}
 )
 
 var (
