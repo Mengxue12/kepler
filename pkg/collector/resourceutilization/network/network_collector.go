@@ -105,9 +105,9 @@ func UpdateNodeNetworkMetrics(nodeStats *stats.NodeStats) {
 	if !ok {
 		nodeNetNS = "unknown"
 	}
-	perInterfaceStats, err := getNetDevStats("/proc/net/dev", nodeNetNS, true)
+	perInterfaceStats, err := getNetDevStats("/proc/1/net/dev", nodeNetNS, true)
 	if err != nil {
-		klog.V(3).Infof("failed to read /proc/net/dev: %v", err)
+		klog.V(3).Infof("failed to read /proc/1/net/dev: %v", err)
 		return
 	}
 
