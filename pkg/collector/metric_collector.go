@@ -28,6 +28,7 @@ import (
 	"github.com/sustainable-computing-io/kepler/pkg/collector/resourceutilization/accelerator"
 	resourceBpf "github.com/sustainable-computing-io/kepler/pkg/collector/resourceutilization/bpf"
 	resourceDisk "github.com/sustainable-computing-io/kepler/pkg/collector/resourceutilization/disk"
+	resourceMemory "github.com/sustainable-computing-io/kepler/pkg/collector/resourceutilization/memory"
 	resourceNetwork "github.com/sustainable-computing-io/kepler/pkg/collector/resourceutilization/network"
 	"github.com/sustainable-computing-io/kepler/pkg/collector/stats"
 	"github.com/sustainable-computing-io/kepler/pkg/config"
@@ -73,6 +74,7 @@ func NewCollector(bpfExporter bpf.Exporter) *Collector {
 	bpfSupportedMetrics.SoftwareCounters.Insert(
 		config.DiskRead, config.DiskWrite,
 		config.NetRX, config.NetTX,
+		config.MemRead, config.MemWrite,
 	)
 	c := &Collector{
 		NodeStats:           *stats.NewNodeStats(bpfSupportedMetrics),
@@ -165,6 +167,7 @@ func (c *Collector) updateResourceUtilizationMetrics() {
 	resourceDisk.UpdateNodeDiskIOMetrics(&c.NodeStats)
 	resourceNetwork.UpdateContainerNetworkMetrics(c.ContainerStats)
 	resourceNetwork.UpdateNodeNetworkMetrics(&c.NodeStats)
+	resourceMemory.UpdateNodeMemoryBandwidthMetrics(&c.NodeStats)
 }
 
 // update the node metrics that are not related to aggregated resource utilization of processes

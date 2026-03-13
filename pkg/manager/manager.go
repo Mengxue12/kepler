@@ -51,6 +51,7 @@ func New(bpfExporter bpf.Exporter) *CollectorManager {
 	supportedMetrics.SoftwareCounters.Insert(
 		config.DiskRead, config.DiskWrite,
 		config.NetRX, config.NetTX,
+		config.MemRead, config.MemWrite,
 	)
 	manager.StatsCollector = collector.NewCollector(bpfExporter)
 	manager.PrometheusCollector = exporter.NewPrometheusExporter(supportedMetrics)

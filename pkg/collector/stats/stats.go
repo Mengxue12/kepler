@@ -75,6 +75,9 @@ func NewStats(bpfSupportedMetrics bpf.SupportedMetrics) *Stats {
 	// Network metrics can be collected directly from /proc without process-level BPF counters.
 	m.ResourceUsage[config.NetRX] = types.NewUInt64StatCollection()
 	m.ResourceUsage[config.NetTX] = types.NewUInt64StatCollection()
+	// Node memory bandwidth metrics are collected from procfs and exported as cumulative bytes.
+	m.ResourceUsage[config.MemRead] = types.NewUInt64StatCollection()
+	m.ResourceUsage[config.MemWrite] = types.NewUInt64StatCollection()
 
 	if config.EnabledGPU && gpu.IsGPUCollectionSupported() {
 		m.ResourceUsage[config.GPUComputeUtilization] = types.NewUInt64StatCollection()

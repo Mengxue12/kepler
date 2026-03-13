@@ -45,6 +45,9 @@ const (
 	DiskRead  = "disk_read"
 	DiskWrite = "disk_write"
 
+	MemRead  = "mem_read"
+	MemWrite = "mem_write"
+
 	// NVIDIA GPU
 	GPUComputeUtilization = "gpu_compute_util"
 	GPUMemUtilization     = "gpu_mem_util"
