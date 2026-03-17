@@ -254,7 +254,34 @@ func CollectResUtil(ch chan<- prometheus.Metric, instance interface{}, metricNam
 	}
 }
 
+func CollectNodeCPUFrequency(ch chan<- prometheus.Metric, node *stats.NodeStats, collector metricfactory.PromMetric) {
+	if collector == nil || node == nil {
+		return
+	}
+	cpuFreqStats, exist := node.ResourceUsage[config.CPUFrequency]
+	if !exist {
+		return
+	}
+	for usageID, utilization := range cpuFreqStats {
+		policy, cpu, ok := parseCPUFrequencyUsageID(usageID)
+		if !ok {
+			klog.V(6).Infof("invalid cpu frequency usage id %q", usageID)
+			continue
+		}
+		value := float64(utilization.GetAggr())
+		ch <- collector.MustMetric(value, stats.NodeName, policy, cpu)
+	}
+}
+
 func parseNetUsageID(id string) (string, string, bool) {
+	parts := strings.SplitN(id, "|", 2)
+	if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
+		return "", "", false
+	}
+	return parts[0], parts[1], true
+}
+
+func parseCPUFrequencyUsageID(id string) (string, string, bool) {
 	parts := strings.SplitN(id, "|", 2)
 	if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
 		return "", "", false

@@ -78,6 +78,10 @@ func (c *collector) initMetrics() {
 		c.descriptions[name] = desc
 		c.collectors[name] = metricfactory.NewPromCounter(desc)
 	}
+	if desc := metricfactory.CPUFrequencyMetricPromDesc(context); desc != nil {
+		c.descriptions[config.CPUFrequency] = desc
+		c.collectors[config.CPUFrequency] = metricfactory.NewPromGauge(desc)
+	}
 
 	// TODO: prometheus metric should be "node_info"
 	desc := metricfactory.MetricsPromDesc(context, "", "info", "os", []string{
@@ -100,6 +104,7 @@ func (c *collector) Collect(ch chan<- prometheus.Metric) {
 	// TODO: verify if the resoruce utilization metrics are needed
 	utils.CollectResUtil(ch, c.NodeStats, config.QATUtilization, c.collectors[config.QATUtilization])
 	utils.CollectResUtilizationMetrics(ch, c.NodeStats, c.collectors, c.bpfSupportedMetrics)
+	utils.CollectNodeCPUFrequency(ch, c.NodeStats, c.collectors[config.CPUFrequency])
 	c.Mx.Unlock()
 
 	// update node info

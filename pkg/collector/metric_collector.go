@@ -27,6 +27,7 @@ import (
 	"github.com/sustainable-computing-io/kepler/pkg/collector/energy"
 	"github.com/sustainable-computing-io/kepler/pkg/collector/resourceutilization/accelerator"
 	resourceBpf "github.com/sustainable-computing-io/kepler/pkg/collector/resourceutilization/bpf"
+	resourceCPU "github.com/sustainable-computing-io/kepler/pkg/collector/resourceutilization/cpu"
 	resourceDisk "github.com/sustainable-computing-io/kepler/pkg/collector/resourceutilization/disk"
 	resourceMemory "github.com/sustainable-computing-io/kepler/pkg/collector/resourceutilization/memory"
 	resourceNetwork "github.com/sustainable-computing-io/kepler/pkg/collector/resourceutilization/network"
@@ -168,6 +169,7 @@ func (c *Collector) updateResourceUtilizationMetrics() {
 	resourceNetwork.UpdateContainerNetworkMetrics(c.ContainerStats)
 	resourceNetwork.UpdateNodeNetworkMetrics(&c.NodeStats)
 	resourceMemory.UpdateNodeMemoryBandwidthMetrics(&c.NodeStats)
+	resourceCPU.UpdateNodeCPUFrequencyMetrics(&c.NodeStats)
 }
 
 // update the node metrics that are not related to aggregated resource utilization of processes

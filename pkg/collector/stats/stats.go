@@ -78,6 +78,8 @@ func NewStats(bpfSupportedMetrics bpf.SupportedMetrics) *Stats {
 	// Node memory bandwidth metrics are collected from procfs and exported as cumulative bytes.
 	m.ResourceUsage[config.MemRead] = types.NewUInt64StatCollection()
 	m.ResourceUsage[config.MemWrite] = types.NewUInt64StatCollection()
+	// Node CPU frequency metric is collected from cpufreq and exported as instantaneous KHz values.
+	m.ResourceUsage[config.CPUFrequency] = types.NewUInt64StatCollection()
 
 	if config.EnabledGPU && gpu.IsGPUCollectionSupported() {
 		m.ResourceUsage[config.GPUComputeUtilization] = types.NewUInt64StatCollection()

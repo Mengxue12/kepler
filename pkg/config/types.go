@@ -47,6 +47,8 @@ const (
 
 	MemRead  = "mem_read"
 	MemWrite = "mem_write"
+	// Node CPU frequency in KHz (instantaneous gauge metric).
+	CPUFrequency = "cpu_frequency_khz"
 
 	// NVIDIA GPU
 	GPUComputeUtilization = "gpu_compute_util"

@@ -40,6 +40,7 @@ var (
 	VMResUtilLabels           = []string{"vm_id"}
 	NodeResUtilLabels         = []string{"device", "instance"}
 	NodeNetResUtilLabels      = []string{"device", "instance", "netns", "interface"}
+	NodeCPUFrequencyLabels    = []string{"instance", "policy", "cpu"}
 	GPUResUtilLabels          = []string{"gpu_id"}
 )
 

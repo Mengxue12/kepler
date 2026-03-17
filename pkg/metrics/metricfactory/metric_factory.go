@@ -102,6 +102,14 @@ func GPUUsageMetricsPromDesc(context string) (descriptions map[string]*prometheu
 	return descriptions
 }
 
+func CPUFrequencyMetricPromDesc(context string) *prometheus.Desc {
+	if context != "node" {
+		return nil
+	}
+	// Frequency is an instantaneous gauge and should not use the "_total" suffix.
+	return MetricsPromDesc(context, config.CPUFrequency, "", "cpufreq", consts.NodeCPUFrequencyLabels)
+}
+
 func resMetricsPromDesc(context, name, source string) (desc *prometheus.Desc) {
 	var labels []string
 	switch context {
