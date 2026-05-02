@@ -263,9 +263,20 @@ func createCPUMeter(logger *slog.Logger, cfg *config.Config) (device.CPUPowerMet
 		logger.Info("rapl zones are filtered", "zones-enabled", cfg.Rapl.Zones)
 	}
 
-	return device.NewCPUPowerMeter(
-		cfg.Host.SysFS,
-		device.WithRaplLogger(logger),
-		device.WithZoneFilter(cfg.Rapl.Zones),
+	if device.RaplPowercapPresent(cfg.Host.SysFS) {
+		return device.NewCPUPowerMeter(
+			cfg.Host.SysFS,
+			device.WithRaplLogger(logger),
+			device.WithZoneFilter(cfg.Rapl.Zones),
+		)
+	}
+
+	logger.Warn("RAPL powercap not found under host sysfs; using node power estimator",
+		"sysfs", cfg.Host.SysFS,
+	)
+	return device.NewNodePowerEstimator(
+		cfg.Host.ProcFS,
+		device.WithEstimatorLogger(logger),
+		device.WithEstimatorMaxPlatformWatts(cfg.PowerEstimator.MaxPlatformWatts),
 	)
 }

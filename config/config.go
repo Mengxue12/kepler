@@ -6,6 +6,7 @@ package config
 import (
 	"fmt"
 	"io"
+	"math"
 	"net"
 	"os"
 	"strconv"
@@ -49,6 +50,12 @@ type (
 	// Rapl configuration
 	Rapl struct {
 		Zones []string `yaml:"zones"`
+	}
+
+	// PowerEstimator configures the software node power meter used when RAPL/powercap is unavailable.
+	PowerEstimator struct {
+		// MaxPlatformWatts is the assumed maximum platform power for integrating synthetic energy (watts).
+		MaxPlatformWatts float64 `yaml:"maxPlatformWatts"`
 	}
 
 	// Development mode settings; disabled by default
@@ -133,8 +140,9 @@ type (
 		Log      Log      `yaml:"log"`
 		Host     Host     `yaml:"host"`
 		Monitor  Monitor  `yaml:"monitor"`
-		Rapl     Rapl     `yaml:"rapl"`
-		Exporter Exporter `yaml:"exporter"`
+		Rapl           Rapl           `yaml:"rapl"`
+		PowerEstimator PowerEstimator `yaml:"power-estimator"`
+		Exporter       Exporter       `yaml:"exporter"`
 		Web      Web      `yaml:"web"`
 		Debug    Debug    `yaml:"debug"`
 		Dev      Dev      `yaml:"dev"` // WARN: do not expose dev settings as flags
@@ -208,6 +216,8 @@ const (
 	// RAPL
 	RaplZones = "rapl.zones" // not a flag
 
+	PowerEstimatorMaxPlatformWattsFlag = "power-estimator.max-platform-watts"
+
 	pprofEnabledFlag = "debug.pprof"
 
 	WebConfigFlag        = "web.config-file"
@@ -247,6 +257,9 @@ func DefaultConfig() *Config {
 		},
 		Rapl: Rapl{
 			Zones: []string{},
+		},
+		PowerEstimator: PowerEstimator{
+			MaxPlatformWatts: 100,
 		},
 		Monitor: Monitor{
 			Interval:  5 * time.Second,
@@ -353,6 +366,9 @@ func RegisterFlags(app *kingpin.Application) ConfigUpdaterFn {
 	// host
 	hostSysFS := app.Flag(HostSysFSFlag, "Host sysfs path").Default("/sys").ExistingDir()
 	hostProcFS := app.Flag(HostProcFSFlag, "Host procfs path").Default("/proc").ExistingDir()
+	powerEstimatorMaxW := app.Flag(PowerEstimatorMaxPlatformWattsFlag,
+		"Assumed max platform power (W) for the software node power estimator when RAPL is unavailable",
+	).Default("100").Float64()
 
 	// monitor
 	monitorInterval := app.Flag(MonitorIntervalFlag,
@@ -397,6 +413,10 @@ func RegisterFlags(app *kingpin.Application) ConfigUpdaterFn {
 
 		if flagsSet[HostProcFSFlag] {
 			cfg.Host.ProcFS = *hostProcFS
+		}
+
+		if flagsSet[PowerEstimatorMaxPlatformWattsFlag] {
+			cfg.PowerEstimator.MaxPlatformWatts = *powerEstimatorMaxW
 		}
 
 		// monitor settings
@@ -597,6 +617,10 @@ func (c *Config) sanitize() {
 		c.Rapl.Zones[i] = strings.TrimSpace(c.Rapl.Zones[i])
 	}
 
+	if c.PowerEstimator.MaxPlatformWatts <= 0 {
+		c.PowerEstimator.MaxPlatformWatts = 100
+	}
+
 	for i := range c.Exporter.Prometheus.DebugCollectors {
 		c.Exporter.Prometheus.DebugCollectors[i] = strings.TrimSpace(c.Exporter.Prometheus.DebugCollectors[i])
 	}
@@ -654,6 +678,14 @@ func (c *Config) Validate(skips ...SkipValidation) error {
 			if err := canReadDir(c.Host.ProcFS); err != nil {
 				errs = append(errs, fmt.Sprintf("invalid procfs path: %s: %s ", c.Host.ProcFS, err.Error()))
 			}
+		}
+	}
+	{ // Power estimator (used only when RAPL is unavailable)
+		w := c.PowerEstimator.MaxPlatformWatts
+		if math.IsNaN(w) || math.IsInf(w, 0) {
+			errs = append(errs, "power-estimator.maxPlatformWatts must be a finite number")
+		} else if w <= 0 {
+			errs = append(errs, "power-estimator.maxPlatformWatts must be positive")
 		}
 	}
 	{ // Web config file
@@ -824,6 +856,7 @@ func (c *Config) manualString() string {
 		{LogFormatFlag, c.Log.Format},
 		{HostSysFSFlag, c.Host.SysFS},
 		{HostProcFSFlag, c.Host.ProcFS},
+		{PowerEstimatorMaxPlatformWattsFlag, fmt.Sprintf("%g", c.PowerEstimator.MaxPlatformWatts)},
 		{MonitorIntervalFlag, c.Monitor.Interval.String()},
 		{MonitorStaleness, c.Monitor.Staleness.String()},
 		{MonitorMaxTerminatedFlag, fmt.Sprintf("%d", c.Monitor.MaxTerminated)},
