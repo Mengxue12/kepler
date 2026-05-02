@@ -162,6 +162,15 @@ deps: ## Dependencies management (tidy and verify)
 	$(GOMOD) tidy
 	$(GOMOD) verify
 
+# Build cross-platform binary and push to registry
+.PHONY: build-image-cross
+build-image-cross: 
+	docker buildx build \
+		-t mengxue12/kepler:v0.11.2-$(shell date +%Y%m%d%H) \
+		--platform linux/amd64,linux/arm64 \
+		--push \
+		.
+
 # Build Docker image
 .PHONY: image
 image: ## Docker image build
