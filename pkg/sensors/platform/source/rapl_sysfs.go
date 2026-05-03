@@ -29,13 +29,28 @@ const (
 	// sysfs path templates for RAPL
 	raplPackageNamePathTemplate = "/sys/class/powercap/intel-rapl/intel-rapl:%d/"
 	raplEnergyFile              = "energy_uj"
+	raplMaxEnergyRangeFile      = "max_energy_range_uj"
 	raplNameFile                = "name"
 	psysEvent                   = "psys"
 )
 
+// psysDeltaEnergyMicrojoules returns the delta in microjoules between two energy_uj
+// readings for a psys zone. maxEnergyUJ is max_energy_range_uj from powercap; when
+// current < prev, delta = (maxEnergyUJ - prev) + current.
+func psysDeltaEnergyMicrojoules(prevUJ, currentUJ, maxEnergyUJ uint64) uint64 {
+	if currentUJ >= prevUJ {
+		return currentUJ - prevUJ
+	}
+	if maxEnergyUJ > 0 && prevUJ <= maxEnergyUJ {
+		return (maxEnergyUJ - prevUJ) + currentUJ
+	}
+	return currentUJ
+}
+
 // PowerRAPLSysfs implements platform power collection using RAPL psys
 type PowerRAPLSysfs struct {
 	psysPath     string
+	maxEnergyUJ  uint64 // from max_energy_range_uj (wrap modulus for energy_uj)
 	prevEnergyUJ uint64 // previous energy reading in microjoules
 	initialized  bool   // whether we have a previous reading
 }
@@ -68,7 +83,16 @@ func (r *PowerRAPLSysfs) IsSystemCollectionSupported() bool {
 			// Found psys, check if we can read energy
 			if _, err := os.ReadFile(packagePath + raplEnergyFile); err == nil {
 				r.psysPath = packagePath
-				klog.V(5).Infof("Found RAPL psys at: %s", packagePath)
+				if maxData, err := os.ReadFile(packagePath + raplMaxEnergyRangeFile); err == nil {
+					if m, err := strconv.ParseUint(strings.TrimSpace(string(maxData)), 10, 64); err == nil {
+						r.maxEnergyUJ = m
+					} else {
+						klog.V(3).Infof("RAPL psys: parse %s%s: %v", packagePath, raplMaxEnergyRangeFile, err)
+					}
+				} else {
+					klog.V(3).Infof("RAPL psys: read %s%s: %v", packagePath, raplMaxEnergyRangeFile, err)
+				}
+				klog.V(5).Infof("Found RAPL psys at: %s (max_energy_range_uj=%d)", packagePath, r.maxEnergyUJ)
 				return true
 			}
 		}
@@ -108,11 +132,13 @@ func (r *PowerRAPLSysfs) GetAbsEnergyFromPlatform() (map[string]float64, error) 
 	if currentEnergyUJ >= r.prevEnergyUJ {
 		deltaEnergyUJ = currentEnergyUJ - r.prevEnergyUJ
 	} else {
-		// Handle counter wraparound
-		// RAPL counters are typically 32-bit or have a known max range
-		klog.V(5).Infof("RAPL psys counter wrapped: prev=%d, current=%d", r.prevEnergyUJ, currentEnergyUJ)
-		// For now, just use the current value as delta after wraparound
-		deltaEnergyUJ = currentEnergyUJ
+		klog.V(5).Infof("RAPL psys counter wrapped: prev=%d, current=%d, max_energy_range_uj=%d",
+			r.prevEnergyUJ, currentEnergyUJ, r.maxEnergyUJ)
+		deltaEnergyUJ = psysDeltaEnergyMicrojoules(r.prevEnergyUJ, currentEnergyUJ, r.maxEnergyUJ)
+		if r.maxEnergyUJ == 0 || r.prevEnergyUJ > r.maxEnergyUJ {
+			klog.V(3).Infof("RAPL psys wrap without usable max_energy_range_uj (max=%d, prev=%d); delta=%d uJ",
+				r.maxEnergyUJ, r.prevEnergyUJ, deltaEnergyUJ)
+		}
 	}
 
 	// Update previous value for next call

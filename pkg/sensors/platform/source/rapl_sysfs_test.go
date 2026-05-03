@@ -41,6 +41,29 @@ func TestPowerRAPLSysfs_IsSystemCollectionSupported(t *testing.T) {
 	t.Logf("RAPL psys support: %v", supported)
 }
 
+func TestPsysDeltaEnergyMicrojoules(t *testing.T) {
+	tests := []struct {
+		name      string
+		prev      uint64
+		current   uint64
+		max       uint64
+		wantDelta uint64
+	}{
+		{"no_wrap", 100, 150, 1_000_000, 50},
+		{"wrap_with_max", 900, 100, 1_000, 200}, // (1000-900)+100 = 200
+		{"wrap_no_max_fallback", 900, 100, 0, 100},
+		{"wrap_prev_gt_max_fallback", 1500, 50, 1000, 50},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := psysDeltaEnergyMicrojoules(tt.prev, tt.current, tt.max); got != tt.wantDelta {
+				t.Errorf("psysDeltaEnergyMicrojoules(%d,%d,%d) = %d, want %d",
+					tt.prev, tt.current, tt.max, got, tt.wantDelta)
+			}
+		})
+	}
+}
+
 func TestNewPowerRAPLSysfs(t *testing.T) {
 	// This test depends on system hardware
 	rapl := NewPowerRAPLSysfs()
