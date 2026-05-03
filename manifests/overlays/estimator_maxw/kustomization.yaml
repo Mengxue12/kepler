@@ -1,0 +1,14 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - ../../k8s
+
+patches:
+  - target:
+      group: apps
+      version: v1
+      kind: DaemonSet
+      name: kepler
+      namespace: kepler
+    path: daemonset-maxw.yaml

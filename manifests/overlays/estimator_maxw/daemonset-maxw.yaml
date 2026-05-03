@@ -1,0 +1,15 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: kepler
+  namespace: kepler
+spec:
+  template:
+    spec:
+      containers:
+        - name: kepler
+          args:
+            - --config.file=/etc/kepler/config.yaml
+            - --power-estimator.max-platform-watts=10
+            - --kube.enable
+            - --kube.node-name=$(NODE_NAME)
