@@ -259,7 +259,8 @@ spec:
           valueFrom:
             fieldRef:
               fieldPath: spec.nodeName
-        image: mengxue12/kepler:release-0.7.11-linux-2025102313
+        image: mengxue12/kepler:release-0.7.11-linux-2026050322
+        # image: mengxue12/kepler:release-0.7.11-linux-2025102313
         imagePullPolicy: IfNotPresent
         livenessProbe:
           failureThreshold: 5
