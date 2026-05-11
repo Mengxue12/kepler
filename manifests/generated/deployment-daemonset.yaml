@@ -124,7 +124,7 @@ data:
   METRIC_PATH: /metrics
   MODEL_CONFIG: |
     CONTAINER_COMPONENTS_ESTIMATOR=false
-  PROMETHEUS_SCRAPE_INTERVAL: 3s
+  PROMETHEUS_SCRAPE_INTERVAL: 1s
 kind: ConfigMap
 metadata:
   labels:
@@ -151,7 +151,7 @@ data:
     NODE_COMPONENTS_ESTIMATOR=false
     NODE_TOTAL_ESTIMATOR=true
     NODE_TOTAL_TRAINER="rpi-model"
-  PROMETHEUS_SCRAPE_INTERVAL: 3s
+  PROMETHEUS_SCRAPE_INTERVAL: 1s
 kind: ConfigMap
 metadata:
   labels:
@@ -515,7 +515,7 @@ metadata:
   namespace: monitoring
 spec:
   endpoints:
-  - interval: 3s
+  - interval: 1s
     port: http
     relabelings:
     - action: replace
