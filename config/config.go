@@ -56,6 +56,12 @@ type (
 	PowerEstimator struct {
 		// MaxPlatformWatts is the assumed maximum platform power for integrating synthetic energy (watts).
 		MaxPlatformWatts float64 `yaml:"maxPlatformWatts"`
+		// SocketPath, if non-empty, is a Unix domain socket path. When a socket exists at this path,
+		// Kepler requests JSON power samples from it each monitoring tick; otherwise (or on error)
+		// integration uses MaxPlatformWatts as a fixed ceiling (fake estimator fallback).
+		SocketPath string `yaml:"socketPath"`
+		// SocketTimeout bounds each unix socket request (dial + read/write). Zero applies a default when SocketPath is set.
+		SocketTimeout time.Duration `yaml:"socketTimeout"`
 	}
 
 	// Development mode settings; disabled by default
@@ -137,16 +143,16 @@ type (
 	}
 
 	Config struct {
-		Log      Log      `yaml:"log"`
-		Host     Host     `yaml:"host"`
-		Monitor  Monitor  `yaml:"monitor"`
+		Log            Log            `yaml:"log"`
+		Host           Host           `yaml:"host"`
+		Monitor        Monitor        `yaml:"monitor"`
 		Rapl           Rapl           `yaml:"rapl"`
 		PowerEstimator PowerEstimator `yaml:"power-estimator"`
 		Exporter       Exporter       `yaml:"exporter"`
-		Web      Web      `yaml:"web"`
-		Debug    Debug    `yaml:"debug"`
-		Dev      Dev      `yaml:"dev"` // WARN: do not expose dev settings as flags
-		Kube     Kube     `yaml:"kube"`
+		Web            Web            `yaml:"web"`
+		Debug          Debug          `yaml:"debug"`
+		Dev            Dev            `yaml:"dev"` // WARN: do not expose dev settings as flags
+		Kube           Kube           `yaml:"kube"`
 
 		// NOTE: Experimental field is a pointer on purpose to
 		// use omitempty to suppress printing (String) Experimental configuration
@@ -217,6 +223,8 @@ const (
 	RaplZones = "rapl.zones" // not a flag
 
 	PowerEstimatorMaxPlatformWattsFlag = "power-estimator.max-platform-watts"
+	PowerEstimatorSocketPathFlag       = "power-estimator.socket-path"
+	PowerEstimatorSocketTimeoutFlag    = "power-estimator.socket-timeout"
 
 	pprofEnabledFlag = "debug.pprof"
 
@@ -369,6 +377,12 @@ func RegisterFlags(app *kingpin.Application) ConfigUpdaterFn {
 	powerEstimatorMaxW := app.Flag(PowerEstimatorMaxPlatformWattsFlag,
 		"Assumed max platform power (W) for the software node power estimator when RAPL is unavailable",
 	).Default("100").Float64()
+	powerEstimatorSocketPath := app.Flag(PowerEstimatorSocketPathFlag,
+		"Unix socket path for JSON power estimator sidecar; empty disables socket (fixed-watt fallback only)",
+	).Default("").String()
+	powerEstimatorSocketTimeout := app.Flag(PowerEstimatorSocketTimeoutFlag,
+		"Timeout for each unix socket request to the power estimator",
+	).Default("2s").Duration()
 
 	// monitor
 	monitorInterval := app.Flag(MonitorIntervalFlag,
@@ -417,6 +431,13 @@ func RegisterFlags(app *kingpin.Application) ConfigUpdaterFn {
 
 		if flagsSet[PowerEstimatorMaxPlatformWattsFlag] {
 			cfg.PowerEstimator.MaxPlatformWatts = *powerEstimatorMaxW
+		}
+
+		if flagsSet[PowerEstimatorSocketPathFlag] {
+			cfg.PowerEstimator.SocketPath = *powerEstimatorSocketPath
+		}
+		if flagsSet[PowerEstimatorSocketTimeoutFlag] {
+			cfg.PowerEstimator.SocketTimeout = *powerEstimatorSocketTimeout
 		}
 
 		// monitor settings
@@ -621,6 +642,11 @@ func (c *Config) sanitize() {
 		c.PowerEstimator.MaxPlatformWatts = 100
 	}
 
+	c.PowerEstimator.SocketPath = strings.TrimSpace(c.PowerEstimator.SocketPath)
+	if c.PowerEstimator.SocketPath != "" && c.PowerEstimator.SocketTimeout <= 0 {
+		c.PowerEstimator.SocketTimeout = 2 * time.Second
+	}
+
 	for i := range c.Exporter.Prometheus.DebugCollectors {
 		c.Exporter.Prometheus.DebugCollectors[i] = strings.TrimSpace(c.Exporter.Prometheus.DebugCollectors[i])
 	}
@@ -686,6 +712,9 @@ func (c *Config) Validate(skips ...SkipValidation) error {
 			errs = append(errs, "power-estimator.maxPlatformWatts must be a finite number")
 		} else if w <= 0 {
 			errs = append(errs, "power-estimator.maxPlatformWatts must be positive")
+		}
+		if c.PowerEstimator.SocketTimeout < 0 {
+			errs = append(errs, "power-estimator.socketTimeout must not be negative")
 		}
 	}
 	{ // Web config file
@@ -857,6 +886,8 @@ func (c *Config) manualString() string {
 		{HostSysFSFlag, c.Host.SysFS},
 		{HostProcFSFlag, c.Host.ProcFS},
 		{PowerEstimatorMaxPlatformWattsFlag, fmt.Sprintf("%g", c.PowerEstimator.MaxPlatformWatts)},
+		{PowerEstimatorSocketPathFlag, c.PowerEstimator.SocketPath},
+		{PowerEstimatorSocketTimeoutFlag, c.PowerEstimator.SocketTimeout.String()},
 		{MonitorIntervalFlag, c.Monitor.Interval.String()},
 		{MonitorStaleness, c.Monitor.Staleness.String()},
 		{MonitorMaxTerminatedFlag, fmt.Sprintf("%d", c.Monitor.MaxTerminated)},

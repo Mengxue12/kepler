@@ -5,9 +5,11 @@ package device
 
 import (
 	"fmt"
+	"io/fs"
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 )
@@ -22,9 +24,9 @@ func WithEstimatorLogger(logger *slog.Logger) NodePowerEstimatorOption {
 	}
 }
 
-// WithEstimatorMaxPlatformWatts sets the assumed maximum platform power (watts) used to
-// integrate a synthetic cumulative energy counter between samples. The monitor still splits
-// active vs idle using /proc/stat CPU usage, matching the RAPL code path.
+// WithEstimatorMaxPlatformWatts sets the assumed maximum platform power (watts) used as a
+// fixed-power fallback when no unix estimator is available or when the socket request fails.
+// The monitor still splits active vs idle using /proc/stat CPU usage, matching the RAPL code path.
 func WithEstimatorMaxPlatformWatts(w float64) NodePowerEstimatorOption {
 	return func(e *nodePowerEstimator) {
 		if w > 0 {
@@ -33,14 +35,34 @@ func WithEstimatorMaxPlatformWatts(w float64) NodePowerEstimatorOption {
 	}
 }
 
-// nodePowerEstimator implements CPUPowerMeter by integrating a constant maximum platform
-// power between Energy() samples. This approximates hardware RAPL counters when powercap
-// is missing (e.g. non-Intel hosts or restricted sysfs).
+// WithEstimatorSocketPath sets a Unix domain socket path. When non-empty and a socket exists at
+// that path, each Energy() sample requests JSON power from the sidecar; otherwise integration
+// uses the fixed max-platform-watts value (fake estimator).
+func WithEstimatorSocketPath(path string) NodePowerEstimatorOption {
+	return func(e *nodePowerEstimator) {
+		e.socketPath = strings.TrimSpace(path)
+	}
+}
+
+// WithEstimatorSocketTimeout sets the dial/read/write deadline for unix estimator requests.
+// Non-positive values are replaced by a default when a socket path is configured.
+func WithEstimatorSocketTimeout(d time.Duration) NodePowerEstimatorOption {
+	return func(e *nodePowerEstimator) {
+		e.socketTimeout = d
+	}
+}
+
+// nodePowerEstimator implements CPUPowerMeter by integrating platform power between Energy()
+// samples. Power is either obtained from a unix-socket JSON sidecar when configured and
+// available, or from a constant max-platform-watts ceiling (legacy fake estimator behavior).
 type nodePowerEstimator struct {
 	logger *slog.Logger
 
 	procPath         string
 	maxPlatformWatts float64
+
+	socketPath    string
+	socketTimeout time.Duration
 
 	mu sync.Mutex
 
@@ -70,6 +92,9 @@ func NewNodePowerEstimator(procPath string, opts ...NodePowerEstimatorOption) (*
 	for _, o := range opts {
 		o(e)
 	}
+	if e.socketPath != "" && e.socketTimeout <= 0 {
+		e.socketTimeout = 2 * time.Second
+	}
 	z := &estimatorEnergyZone{m: e}
 	e.zone = z
 	return e, nil
@@ -89,9 +114,19 @@ func (e *nodePowerEstimator) Init() error {
 	e.cumulative = 0
 	e.lastSample = time.Time{}
 	e.mu.Unlock()
-	e.logger.Info("Node power estimator initialized (software platform energy counter)",
-		"max-platform-watts", e.maxPlatformWatts,
-	)
+
+	if e.socketPath != "" {
+		e.logger.Info("Node power estimator initialized",
+			"mode", "unix-json when socket present, else fixed-watts fallback",
+			"socket-path", e.socketPath,
+			"socket-timeout", e.socketTimeout,
+			"fallback-max-platform-watts", e.maxPlatformWatts,
+		)
+	} else {
+		e.logger.Info("Node power estimator initialized (fixed max platform power)",
+			"max-platform-watts", e.maxPlatformWatts,
+		)
+	}
 	return nil
 }
 
@@ -139,10 +174,34 @@ func (e *nodePowerEstimator) integrateEnergy() (Energy, error) {
 		return e.cumulative, nil
 	}
 
-	psyPower := Power(e.maxPlatformWatts * float64(Watt))
+	psyPower := e.platformPowerMicroWatts()
 	delta := Energy(psyPower.MicroWatts() * dt)
 	e.cumulative += delta
 	e.lastSample = now
 
 	return e.cumulative, nil
+}
+
+// platformPowerMicroWatts returns instantaneous platform power in MicroWatts: from the unix
+// estimator when configured and the path is a live socket, else the fixed max-platform-watts fallback.
+func (e *nodePowerEstimator) platformPowerMicroWatts() Power {
+	if e.socketPath != "" && isUnixSocket(e.socketPath) {
+		p, err := queryEstimatorPowerUnix(e.socketPath, e.socketTimeout)
+		if err == nil {
+			return p
+		}
+		e.logger.Debug("unix power estimator unavailable; using fixed max platform watts",
+			"path", e.socketPath,
+			"error", err,
+		)
+	}
+	return Power(e.maxPlatformWatts * float64(Watt))
+}
+
+func isUnixSocket(path string) bool {
+	fi, err := os.Stat(path)
+	if err != nil {
+		return false
+	}
+	return fi.Mode().Type() == fs.ModeSocket
 }

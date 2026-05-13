@@ -45,11 +45,17 @@ func TestPowerCollectorConcurrency(t *testing.T) {
 
 	assert.NoError(t, fakeMonitor.Init())
 
+	ctx, cancel := context.WithCancel(context.Background())
+	var runDone sync.WaitGroup
+	runDone.Add(1)
 	go func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-		defer cancel()
+		defer runDone.Done()
 		err := fakeMonitor.Run(ctx)
 		assert.NoError(t, err)
+	}()
+	defer func() {
+		cancel()
+		runDone.Wait()
 	}()
 
 	t.Run("Concurrent Describe", func(t *testing.T) {
@@ -335,11 +341,17 @@ func TestConcurrentRegistration(t *testing.T) {
 	collector := NewPowerCollector(fakeMonitor, "test-node", newLogger(), config.MetricsLevelAll)
 	assert.NoError(t, fakeMonitor.Init())
 
+	ctx, cancel := context.WithCancel(context.Background())
+	var runDone sync.WaitGroup
+	runDone.Add(1)
 	go func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-		defer cancel()
+		defer runDone.Done()
 		err := fakeMonitor.Run(ctx)
 		assert.NoError(t, err)
+	}()
+	defer func() {
+		cancel()
+		runDone.Wait()
 	}()
 
 	// Create registries
@@ -392,11 +404,17 @@ func TestFastCollectAndDescribe(t *testing.T) {
 
 	assert.NoError(t, fakeMonitor.Init())
 
+	ctx, cancel := context.WithCancel(context.Background())
+	var runDone sync.WaitGroup
+	runDone.Add(1)
 	go func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-		defer cancel()
+		defer runDone.Done()
 		err := fakeMonitor.Run(ctx)
 		assert.NoError(t, err)
+	}()
+	defer func() {
+		cancel()
+		runDone.Wait()
 	}()
 
 	// Test rapid Collect calls
