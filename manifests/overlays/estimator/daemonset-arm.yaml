@@ -1,0 +1,111 @@
+# ARM-only Kepler + unix estimator sidecar (shared emptyDir socket).
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: kepler-arm
+  namespace: kepler
+  labels:
+    app.kubernetes.io/name: kepler
+    app.kubernetes.io/part-of: kepler
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: kepler
+      app.kubernetes.io/part-of: kepler
+      kepler.io/daemonset: arm
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: kepler
+        app.kubernetes.io/part-of: kepler
+        kepler.io/daemonset: arm
+        kepler.io/estimator: "true"
+    spec:
+      serviceAccountName: kepler
+      hostPID: true
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: kubernetes.io/arch
+                    operator: In
+                    values: ["arm64", "aarch64"]
+      tolerations:
+        - key: node-role.kubernetes.io/control-plane
+          operator: Exists
+          effect: NoSchedule
+        - key: node-role.kubernetes.io/master
+          operator: Exists
+          effect: NoSchedule
+      volumes:
+        - name: sysfs
+          hostPath:
+            path: /sys
+        - name: procfs
+          hostPath:
+            path: /proc
+        - name: cfm
+          configMap:
+            name: kepler
+        - name: estimator-sock
+          emptyDir: {}
+      containers:
+        - name: kepler
+          image: <KEPLER_IMAGE>
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            privileged: true
+          command:
+            - /usr/bin/kepler
+          args:
+            - --config.file=/etc/kepler/config.yaml
+            - --kube.enable
+            - --kube.node-name=$(NODE_NAME)
+          ports:
+            - name: http
+              containerPort: 28282
+              protocol: TCP
+          volumeMounts:
+            - name: estimator-sock
+              mountPath: /var/run/kepler-estimator
+            - name: sysfs
+              mountPath: /host/sys
+              readOnly: true
+            - name: procfs
+              mountPath: /host/proc
+              readOnly: true
+            - name: cfm
+              mountPath: /etc/kepler
+          livenessProbe:
+            httpGet:
+              path: /metrics
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 60
+          env:
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  apiVersion: v1
+                  fieldPath: spec.nodeName
+        - name: estimator
+          image: mengxue12/power-estimator:kepler-v0.11.2-2026051314 # TODO
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: estim-metrics
+              containerPort: 9092
+              protocol: TCP
+          env:
+            - name: ESTIMATOR_SOCKET
+              value: /var/run/kepler-estimator/estimator.sock
+            - name: ESTIMATOR_PROC
+              value: /host/proc
+            - name: ESTIMATOR_METRICS_LISTEN
+              value: ":9092"
+          volumeMounts:
+            - name: estimator-sock
+              mountPath: /var/run/kepler-estimator
+            - name: procfs
+              mountPath: /host/proc
+              readOnly: true

@@ -1,0 +1,35 @@
+# Overlay: ARM nodes run Kepler + unix estimator sidecar; other architectures run Kepler only.
+#
+# - DaemonSet `kepler`: nodeAffinity excludes arm64/aarch64; no sidecar.
+# - DaemonSet `kepler-arm`: nodeAffinity requires arm64/aarch64; includes estimator sidecar.
+# - Service `kepler` still selects all Kepler pods (port 28282). Service `kepler-estimator`
+#   selects only ARM pods for sidecar /metrics (port 9092).
+#
+# Prometheus Operator: ServiceMonitor `kepler` (http) + `kepler-estimator` (metrics).
+#
+# Build / push the sidecar image from repo root:
+#   docker build -f estimator/Dockerfile -t <your-registry>/kepler-estimator:<tag> estimator
+#
+# Deploy:
+#   kubectl apply -k manifests/overlays/estimator
+#
+# Set the sidecar image (example):
+#   (cd manifests/overlays/estimator && kustomize edit set image kepler-estimator=<registry>/kepler-estimator:<tag>)
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - ../../k8s
+  - daemonset-arm.yaml
+  - service-estimator.yaml
+  - servicemonitor-estimator.yaml
+
+patches:
+  - path: configmap.yaml
+  - path: daemonset.yaml
+  - path: servicemonitor.yaml
+
+images:
+  - name: kepler-estimator
+    newName: quay.io/sustainable-computing-io/kepler-estimator
+    newTag: latest

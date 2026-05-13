@@ -1,0 +1,11 @@
+# Kepler core /metrics only (all nodes). Estimator metrics use ServiceMonitor kepler-estimator.
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: kepler
+  namespace: kepler
+spec:
+  endpoints:
+    - port: http
+      interval: 5s
+      path: /metrics

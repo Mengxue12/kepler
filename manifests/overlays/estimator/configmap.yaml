@@ -1,0 +1,54 @@
+# Strategic-merge: replaces data.config.yaml to add power-estimator.unix socket path.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kepler
+  namespace: kepler
+data:
+  config.yaml: |
+    log:
+      level: debug
+      format: text
+    host:
+      sysfs: /host/sys
+      procfs: /host/proc
+    monitor:
+      interval: 5s
+      staleness: 500ms
+      maxTerminated: 100
+      minTerminatedEnergyThreshold: 10
+    rapl:
+      zones: []
+    power-estimator:
+      maxPlatformWatts: 100
+      socketPath: /var/run/kepler-estimator/estimator.sock
+      socketTimeout: 2s
+    exporter:
+      stdout:
+        enabled: false
+      prometheus:
+        enabled: true
+        debugCollectors:
+          - go
+    web:
+      configFile: ""
+      listenAddresses:
+        - ":28282"
+    debug:
+      pprof:
+        enabled: false
+    kube:
+      enabled: false
+      config: ""
+      nodeName: ""
+    dev:
+      fake-cpu-meter:
+        enabled: false
+        zones: []
+    experimental:
+      platform:
+        redfish:
+          enabled: false
+          configFile: "/etc/kepler/redfish.yaml"
+          nodeName: ""
+          httpTimeout: 5s

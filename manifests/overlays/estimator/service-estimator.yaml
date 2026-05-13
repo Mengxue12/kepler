@@ -1,0 +1,21 @@
+# Prometheus scrape target for estimator /metrics (ARM pods only).
+apiVersion: v1
+kind: Service
+metadata:
+  name: kepler-estimator
+  namespace: kepler
+  labels:
+    app.kubernetes.io/name: kepler
+    app.kubernetes.io/part-of: kepler
+    app.kubernetes.io/component: estimator-metrics
+spec:
+  type: ClusterIP
+  ports:
+    - name: metrics
+      port: 9092
+      targetPort: estim-metrics
+      protocol: TCP
+  selector:
+    app.kubernetes.io/name: kepler
+    app.kubernetes.io/part-of: kepler
+    kepler.io/estimator: "true"

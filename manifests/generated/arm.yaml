@@ -1,0 +1,500 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  labels:
+    pod-security.kubernetes.io/audit: privileged
+    pod-security.kubernetes.io/enforce: privileged
+    pod-security.kubernetes.io/warn: privileged
+    security.openshift.io/scc.podSecurityLabelSync: "false"
+    sustainable-computing.io/app: kepler
+  name: kepler
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  labels:
+    sustainable-computing.io/app: kepler
+  name: kepler-sa
+  namespace: kepler
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  labels:
+    app.kubernetes.io/component: prometheus
+    app.kubernetes.io/instance: k8s
+    app.kubernetes.io/name: prometheus
+    sustainable-computing.io/app: kepler
+  name: prometheus-k8s
+  namespace: kepler
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - services
+  - endpoints
+  - pods
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - extensions
+  resources:
+  - ingresses
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - networking.k8s.io
+  resources:
+  - ingresses
+  verbs:
+  - get
+  - list
+  - watch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    sustainable-computing.io/app: kepler
+  name: kepler-clusterrole
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - nodes/metrics
+  - nodes/proxy
+  - nodes/stats
+  - pods
+  verbs:
+  - get
+  - watch
+  - list
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  labels:
+    app.kubernetes.io/component: prometheus
+    app.kubernetes.io/instance: k8s
+    app.kubernetes.io/name: prometheus
+    sustainable-computing.io/app: kepler
+  name: prometheus-k8s
+  namespace: kepler
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: prometheus-k8s
+subjects:
+- kind: ServiceAccount
+  name: prometheus-k8s
+  namespace: monitoring
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  labels:
+    sustainable-computing.io/app: kepler
+  name: kepler-clusterrole-binding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: kepler-clusterrole
+subjects:
+- kind: ServiceAccount
+  name: kepler-sa
+  namespace: kepler
+---
+apiVersion: v1
+data:
+  BIND_ADDRESS: 0.0.0.0:9102
+  CPU_ARCH_OVERRIDE: ""
+  ENABLE_EBPF_CGROUPID: "true"
+  ENABLE_GPU: "false"
+  ENABLE_QAT: "false"
+  EXPOSE_CGROUP_METRICS: "false"
+  EXPOSE_HW_COUNTER_METRICS: "true"
+  EXPOSE_IRQ_COUNTER_METRICS: "true"
+  EXPOSE_VM_METRICS: "false"
+  KEPLER_LOG_LEVEL: "8"
+  KEPLER_NAMESPACE: kepler
+  METRIC_PATH: /metrics
+  MODEL_CONFIG: |
+    CONTAINER_COMPONENTS_ESTIMATOR=false
+  PROMETHEUS_SCRAPE_INTERVAL: 3s
+kind: ConfigMap
+metadata:
+  labels:
+    sustainable-computing.io/app: kepler
+  name: kepler-cfm
+  namespace: kepler
+---
+apiVersion: v1
+data:
+  BIND_ADDRESS: 0.0.0.0:9102
+  CPU_ARCH_OVERRIDE: ""
+  ENABLE_EBPF_CGROUPID: "true"
+  ENABLE_GPU: "false"
+  ENABLE_QAT: "false"
+  EXPOSE_CGROUP_METRICS: "false"
+  EXPOSE_ESTIMATED_IDLE_POWER_METRICS: "true"
+  EXPOSE_HW_COUNTER_METRICS: "true"
+  EXPOSE_IRQ_COUNTER_METRICS: "true"
+  EXPOSE_VM_METRICS: "false"
+  KEPLER_LOG_LEVEL: "8"
+  KEPLER_NAMESPACE: kepler
+  METRIC_PATH: /metrics
+  MODEL_CONFIG: |
+    NODE_COMPONENTS_ESTIMATOR=false
+    NODE_TOTAL_ESTIMATOR=true
+    NODE_TOTAL_TRAINER="rpi-model"
+  PROMETHEUS_SCRAPE_INTERVAL: 3s
+kind: ConfigMap
+metadata:
+  labels:
+    sustainable-computing.io/app: kepler
+  name: kepler-cfm-rpi
+  namespace: kepler
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app.kubernetes.io/component: exporter
+    app.kubernetes.io/name: kepler-exporter
+    sustainable-computing.io/app: kepler
+  name: kepler-exporter
+  namespace: kepler
+spec:
+  clusterIP: None
+  ports:
+  - name: http
+    port: 9102
+    targetPort: http
+  selector:
+    app.kubernetes.io/component: exporter
+    app.kubernetes.io/name: kepler-exporter
+    sustainable-computing.io/app: kepler
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  labels:
+    sustainable-computing.io/app: kepler
+  name: kepler-exporter
+  namespace: kepler
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: exporter
+      app.kubernetes.io/name: kepler-exporter
+      kepler.sustainable-computing.io/variant: amd64
+      sustainable-computing.io/app: kepler
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/component: exporter
+        app.kubernetes.io/name: kepler-exporter
+        kepler.sustainable-computing.io/variant: amd64
+        sustainable-computing.io/app: kepler
+    spec:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: kubernetes.io/arch
+                operator: In
+                values:
+                - amd64
+      containers:
+      - args:
+        - /usr/bin/kepler -v=8
+        command:
+        - /bin/sh
+        - -c
+        env:
+        - name: NODE_IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.hostIP
+        - name: NODE_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: spec.nodeName
+        image: mengxue12/kepler:release-0.7.11-linux-2025102313
+        imagePullPolicy: IfNotPresent
+        livenessProbe:
+          failureThreshold: 5
+          httpGet:
+            path: /healthz
+            port: 9102
+            scheme: HTTP
+          initialDelaySeconds: 10
+          periodSeconds: 60
+          successThreshold: 1
+          timeoutSeconds: 10
+        name: kepler-exporter
+        ports:
+        - containerPort: 9102
+          name: http
+        resources:
+          requests:
+            cpu: 100m
+            memory: 400Mi
+        securityContext:
+          privileged: true
+        volumeMounts:
+        - mountPath: /lib/modules
+          name: lib-modules
+          readOnly: true
+        - mountPath: /sys
+          name: tracing
+          readOnly: true
+        - mountPath: /proc
+          name: proc
+        - mountPath: /var/run
+          name: var-run
+        - mountPath: /etc/kepler/kepler.config
+          name: cfm
+          readOnly: true
+      dnsPolicy: ClusterFirstWithHostNet
+      hostPID: true
+      serviceAccountName: kepler-sa
+      tolerations:
+      - effect: NoSchedule
+        key: node-role.kubernetes.io/master
+      volumes:
+      - hostPath:
+          path: /lib/modules
+          type: Directory
+        name: lib-modules
+      - hostPath:
+          path: /sys
+          type: Directory
+        name: tracing
+      - hostPath:
+          path: /proc
+          type: Directory
+        name: proc
+      - hostPath:
+          path: /var/run
+          type: Directory
+        name: var-run
+      - configMap:
+          name: kepler-cfm
+        name: cfm
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  labels:
+    sustainable-computing.io/app: kepler
+  name: kepler-exporter-arm
+  namespace: kepler
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: exporter
+      app.kubernetes.io/name: kepler-exporter
+      kepler.sustainable-computing.io/variant: arm
+      sustainable-computing.io/app: kepler
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/component: exporter
+        app.kubernetes.io/name: kepler-exporter
+        kepler.sustainable-computing.io/variant: arm
+        sustainable-computing.io/app: kepler
+    spec:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: kubernetes.io/arch
+                operator: In
+                values:
+                - arm64
+                - arm
+      containers:
+      - args:
+        - until [ -e /tmp/estimator.sock ]; do sleep 1; done && /usr/bin/kepler -v=8
+        command:
+        - /bin/sh
+        - -c
+        env:
+        - name: NODE_IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.hostIP
+        - name: NODE_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: spec.nodeName
+        image: mengxue12/kepler:release-0.7.11-linux-2025102313
+        imagePullPolicy: IfNotPresent
+        livenessProbe:
+          failureThreshold: 5
+          httpGet:
+            path: /healthz
+            port: 9102
+            scheme: HTTP
+          initialDelaySeconds: 10
+          periodSeconds: 60
+          successThreshold: 1
+          timeoutSeconds: 10
+        name: kepler-exporter
+        ports:
+        - containerPort: 9102
+          name: http
+        resources:
+          requests:
+            cpu: 100m
+            memory: 400Mi
+        securityContext:
+          privileged: true
+        volumeMounts:
+        - mountPath: /tmp
+          name: tmp
+        - mountPath: /lib/modules
+          name: lib-modules
+          readOnly: true
+        - mountPath: /sys
+          name: tracing
+          readOnly: true
+        - mountPath: /proc
+          name: proc
+        - mountPath: /var/run
+          name: var-run
+        - mountPath: /etc/kepler/kepler.config
+          name: cfm
+          readOnly: true
+      - args:
+        - -u
+        - src/kepler_model/estimate/estimator.py
+        command:
+        - python3
+        image: mengxue12/kepler_model_server
+        imagePullPolicy: IfNotPresent
+        name: estimator
+        volumeMounts:
+        - mountPath: /etc/kepler/kepler.config
+          name: cfm
+          readOnly: true
+        - mountPath: /tmp
+          name: tmp
+        - mountPath: /mnt
+          name: mnt
+      dnsPolicy: ClusterFirstWithHostNet
+      hostPID: true
+      serviceAccountName: kepler-sa
+      tolerations:
+      - effect: NoSchedule
+        key: node-role.kubernetes.io/master
+      volumes:
+      - emptyDir: {}
+        name: tmp
+      - hostPath:
+          path: #todo: add the path to the mnt directory
+          type: Directory
+        name: mnt
+      - hostPath:
+          path: /lib/modules
+          type: Directory
+        name: lib-modules
+      - hostPath:
+          path: /sys
+          type: Directory
+        name: tracing
+      - hostPath:
+          path: /proc
+          type: Directory
+        name: proc
+      - hostPath:
+          path: /var/run
+          type: Directory
+        name: var-run
+      - configMap:
+          name: kepler-cfm-rpi
+        name: cfm
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  labels:
+    app.kubernetes.io/component: exporter
+    app.kubernetes.io/part-of: kepler
+    sustainable-computing.io/app: kepler
+  name: kepler-common-rules
+  namespace: kepler
+spec:
+  groups:
+  - interval: 1m
+    name: kepler-common-rules
+    rules:
+    - expr: |
+        sum by(container_namespace, pod_name) (
+          increase(kepler_container_joules_total[24h:2m])
+        )
+      record: kepler:container_joules_total:increase:24h:by_ns_pod
+    - expr: |
+        sum by(container_namespace) (
+          kepler:container_joules_total:increase:24h:by_ns_pod
+        )
+      record: kepler:container_joules_total:increase:24h:by_ns
+  - interval: 30s
+    name: kepler-low-res-rules
+    rules:
+    - expr: |
+        sum by (container_namespace, pod_name) (
+          irate(kepler_container_package_joules_total[2m])
+        )
+      record: kepler:container_package_watts:2m:by_ns_pod
+    - expr: |
+        sum by (container_namespace, pod_name) (
+          irate(kepler_container_dram_joules_total[2m])
+        )
+      record: kepler:container_dram_watts:2m:by_ns_pod
+    - expr: |
+        sum by (container_namespace, pod_name) (
+          irate(kepler_container_other_joules_total[2m])
+        )
+      record: kepler:container_other_watts:2m:by_ns_pod
+    - expr: |
+        sum by (container_namespace, pod_name) (
+          irate(kepler_container_gpu_joules_total[2m])
+        )
+      record: kepler:container_gpu_watts:2m:by_ns_pod
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  labels:
+    app.kubernetes.io/component: exporter
+    app.kubernetes.io/name: kepler-exporter
+    sustainable-computing.io/app: kepler
+  name: kepler-exporter
+  namespace: monitoring
+spec:
+  endpoints:
+  - interval: 3s
+    port: http
+    relabelings:
+    - action: replace
+      regex: (.*)
+      replacement: $1
+      sourceLabels:
+      - __meta_kubernetes_pod_node_name
+      targetLabel: instance
+    scheme: http
+  jobLabel: app.kubernetes.io/name
+  namespaceSelector:
+    matchNames:
+    - kepler
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: exporter

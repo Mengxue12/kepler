@@ -171,6 +171,15 @@ build-image-cross:
 		--push \
 		.
 
+.PHONY: build-estimator-cross
+build-estimator-cross:
+	docker buildx build \
+		-f estimator/Dockerfile \
+		-t mengxue12/power-estimator:kepler-v0.11.2-$(shell date +%Y%m%d%H) \
+		--platform linux/amd64,linux/arm64 \
+		--push \
+		./estimator
+
 # Build Docker image
 .PHONY: image
 image: ## Docker image build

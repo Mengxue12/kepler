@@ -1,0 +1,23 @@
+# Primary Kepler DaemonSet: no estimator sidecar; schedule only on non-ARM nodes.
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: kepler
+  namespace: kepler
+spec:
+  selector:
+    matchLabels:
+      kepler.io/daemonset: primary
+  template:
+    metadata:
+      labels:
+        kepler.io/daemonset: primary
+    spec:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: kubernetes.io/arch
+                    operator: NotIn
+                    values: ["arm64", "aarch64"]
