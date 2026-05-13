@@ -1,0 +1,7 @@
+{
+  "intercept_watts": 25,
+  "watts_per_user_jiffy": 0.012,
+  "watts_per_system_jiffy": 0.018,
+  "max_predicted_watts": 500,
+  "min_predicted_watts": 5
+}
