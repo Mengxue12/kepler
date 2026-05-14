@@ -27,11 +27,11 @@ type LinearModel struct {
 
 func defaultModel() LinearModel {
 	return LinearModel{
-		InterceptWatts:      25,
+		InterceptWatts:      1.8,
 		WattsPerUserJiffy:   0.012,
 		WattsPerSystemJiffy: 0.018,
-		maxClamp:            500,
-		minClamp:            5,
+		maxClamp:            20,
+		minClamp:            1,
 	}
 }
 
@@ -49,11 +49,11 @@ func loadModel(path string) (LinearModel, error) {
 	}
 	m.maxClamp = m.MaxPredictedWatts
 	if m.maxClamp <= 0 {
-		m.maxClamp = 500
+		m.maxClamp = 20
 	}
 	m.minClamp = m.MinPredictedWatts
 	if m.minClamp <= 0 {
-		m.minClamp = 5
+		m.minClamp = 1
 	}
 	if math.IsNaN(m.InterceptWatts) || math.IsInf(m.InterceptWatts, 0) {
 		return LinearModel{}, fmt.Errorf("invalid intercept_watts")
