@@ -7,5 +7,5 @@ metadata:
 spec:
   endpoints:
     - port: http
-      interval: 5s
+      interval: 1s
       path: /metrics

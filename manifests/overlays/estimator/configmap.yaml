@@ -13,7 +13,7 @@ data:
       sysfs: /host/sys
       procfs: /host/proc
     monitor:
-      interval: 5s
+      interval: 1s
       staleness: 500ms
       maxTerminated: 100
       minTerminatedEnergyThreshold: 10
