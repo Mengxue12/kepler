@@ -167,6 +167,7 @@ deps: ## Dependencies management (tidy and verify)
 build-image-cross: 
 	docker buildx build \
 		-t mengxue12/kepler:v0.11.2-$(shell date +%Y%m%d%H) \
+		-t mengxue12/kepler:v0.11.2-latest \
 		--platform linux/amd64,linux/arm64 \
 		--push \
 		.
@@ -176,6 +177,7 @@ build-estimator-cross:
 	docker buildx build \
 		-f estimator/Dockerfile \
 		-t mengxue12/power-estimator:kepler-v0.11.2-$(shell date +%Y%m%d%H) \
+		-t mengxue12/power-estimator:kepler-v0.11.2-latest \
 		--platform linux/amd64,linux/arm64 \
 		--push \
 		./estimator

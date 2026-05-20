@@ -1,17 +1,61 @@
-# Ignore test binary
-*.test
+# Kepler image build context — only needs: go.mod, go.sum, Makefile,
+# cmd/, internal/, config/, and .git (Makefile version ldflags).
 
-# Ignore coverage file
-*.out
-
-# Ignore env file
-.env
-
-# Ignore bin directory
+# --- Build artifacts & caches ---
 bin/
-
-# Ignore tmp directory
-tmp
-
-# Ignore coverage file
+tmp/
+_output/
+vendor/
+go.work
+go.work.sum
+*.test
+*.out
 coverage.*
+coverage.out
+coverage.html
+
+# --- Local dev / experiments (not in upstream clone) ---
+.conda/
+exporter
+run_rapl_test_sudo.sh
+
+# --- Separate binaries / modules (own Dockerfiles) ---
+estimator/
+
+# --- Docs, manifests, deploy — not compiled into kepler ---
+docs/
+manifests/
+compose/
+hack/
+scripts/
+LICENSES/
+
+# --- CI, governance, editor — not needed in builder ---
+.github/
+.pre-commit-config.yaml
+.commitlintrc.yaml
+.codespellignore
+.markdownlint.yaml
+.yamllint.yaml
+*.md
+DCO
+OWNERS
+GOVERNANCE.md
+MAINTAINERS.md
+SECURITY.md
+CONTRIBUTING.md
+
+# --- Secrets & env ---
+.env
+.env.*
+
+# --- Python (under scripts/, already excluded) ---
+__pycache__/
+*.py[cod]
+*.csv
+
+# --- IDE ---
+.idea/
+.vscode/
+*.swp
+*~
