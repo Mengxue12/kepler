@@ -12,10 +12,20 @@ import (
 
 // CPUJiffies holds jiffies from the aggregate "cpu" line in /proc/stat (see kernel docs).
 type CPUJiffies struct {
-	User   uint64
-	Nice   uint64
-	System uint64
-	Idle   uint64
+	Times map[string]uint64
+}
+
+var cpuTimeTypes = []string{
+	"user",
+	"nice",
+	"system",
+	"idle",
+	"iowait",
+	"irq",
+	"softirq",
+	"steal",
+	"guest",
+	"guest_nice",
 }
 
 // ReadCPUStat reads aggregate CPU counters from procRoot/stat (e.g. procRoot="/host/proc").
@@ -36,32 +46,28 @@ func parseAggregateCPULine(line string) (CPUJiffies, error) {
 	if len(fields) < 5 || fields[0] != "cpu" {
 		return CPUJiffies{}, fmt.Errorf("expected aggregate cpu line, got %q", line)
 	}
-	parse := func(i int) (uint64, error) {
-		return strconv.ParseUint(fields[i], 10, 64)
+	j := CPUJiffies{Times: make(map[string]uint64)}
+	maxFields := len(cpuTimeTypes)
+	if len(fields)-1 < maxFields {
+		maxFields = len(fields) - 1
 	}
-	var j CPUJiffies
-	var err error
-	if j.User, err = parse(1); err != nil {
-		return CPUJiffies{}, fmt.Errorf("user: %w", err)
-	}
-	if j.Nice, err = parse(2); err != nil {
-		return CPUJiffies{}, fmt.Errorf("nice: %w", err)
-	}
-	if j.System, err = parse(3); err != nil {
-		return CPUJiffies{}, fmt.Errorf("system: %w", err)
-	}
-	if j.Idle, err = parse(4); err != nil {
-		return CPUJiffies{}, fmt.Errorf("idle: %w", err)
+	for i := 0; i < maxFields; i++ {
+		v, err := strconv.ParseUint(fields[i+1], 10, 64)
+		if err != nil {
+			return CPUJiffies{}, fmt.Errorf("%s: %w", cpuTimeTypes[i], err)
+		}
+		j.Times[cpuTimeTypes[i]] = v
 	}
 	return j, nil
 }
 
-func subJiffies(a, b CPUJiffies) (dUser, dSystem uint64) {
-	if a.User >= b.User {
-		dUser = a.User - b.User
+func subJiffies(a, b CPUJiffies) map[string]uint64 {
+	delta := make(map[string]uint64, len(a.Times))
+	for timeType, cur := range a.Times {
+		prev := b.Times[timeType]
+		if cur >= prev {
+			delta[timeType] = cur - prev
+		}
 	}
-	if a.System >= b.System {
-		dSystem = a.System - b.System
-	}
-	return dUser, dSystem
+	return delta
 }

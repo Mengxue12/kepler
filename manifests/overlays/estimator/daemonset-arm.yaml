@@ -90,7 +90,7 @@ spec:
                   apiVersion: v1
                   fieldPath: spec.nodeName
         - name: estimator
-          image: mengxue12/power-estimator:kepler-v0.11.2-2026051314 # TODO
+          image: <ESTIMATOR_IMAGE>
           imagePullPolicy: IfNotPresent
           ports:
             - name: estim-metrics
@@ -103,6 +103,11 @@ spec:
               value: /host/proc
             - name: ESTIMATOR_METRICS_LISTEN
               value: ":9092"
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  apiVersion: v1
+                  fieldPath: spec.nodeName
           volumeMounts:
             - name: estimator-sock
               mountPath: /var/run/kepler-estimator

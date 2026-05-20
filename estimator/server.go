@@ -15,30 +15,38 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"sort"
 	"sync"
-	"sync/atomic"
 )
 
 type estimatorServer struct {
 	logger   *slog.Logger
 	procRoot string
+	nodeName string
 	model    LinearModel
 
 	mu       sync.Mutex
 	prev     CPUJiffies
 	prevInit bool
 
-	lastDUser   atomic.Uint64
-	lastDSystem atomic.Uint64
-	lastPowerW  atomic.Uint64
+	lastDeltas map[string]uint64
+	lastPowerW uint64
 }
 
-func newServer(logger *slog.Logger, procRoot string, model LinearModel) *estimatorServer {
-	return &estimatorServer{logger: logger, procRoot: procRoot, model: model}
+func newServer(logger *slog.Logger, procRoot, nodeName string, model LinearModel) *estimatorServer {
+	return &estimatorServer{
+		logger:     logger,
+		procRoot:   procRoot,
+		nodeName:   nodeName,
+		model:      model,
+		lastDeltas: make(map[string]uint64),
+	}
 }
 
 func (s *estimatorServer) lastPowerFloat() float64 {
-	return math.Float64frombits(s.lastPowerW.Load())
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return math.Float64frombits(s.lastPowerW)
 }
 
 // ServeMetrics exposes last deltas and predicted power for Prometheus scraping.
@@ -47,15 +55,24 @@ func (s *estimatorServer) ServeMetrics(addr string) error {
 	mux.HandleFunc("/metrics", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 		p := s.lastPowerFloat()
+		s.mu.Lock()
+		deltas := make(map[string]uint64, len(s.lastDeltas))
+		timeTypes := make([]string, 0, len(s.lastDeltas))
+		for k, v := range s.lastDeltas {
+			deltas[k] = v
+			timeTypes = append(timeTypes, k)
+		}
+		s.mu.Unlock()
+		sort.Strings(timeTypes)
+
 		_, _ = fmt.Fprintf(w, "# HELP estimator_power_watts_last Predicted platform power from linear model (last sample).\n")
 		_, _ = fmt.Fprintf(w, "# TYPE estimator_power_watts_last gauge\n")
 		_, _ = fmt.Fprintf(w, "estimator_power_watts_last %g\n", p)
-		_, _ = fmt.Fprintf(w, "# HELP estimator_procstat_user_jiffies_delta Last interval delta user jiffies (aggregate cpu line).\n")
-		_, _ = fmt.Fprintf(w, "# TYPE estimator_procstat_user_jiffies_delta gauge\n")
-		_, _ = fmt.Fprintf(w, "estimator_procstat_user_jiffies_delta %d\n", s.lastDUser.Load())
-		_, _ = fmt.Fprintf(w, "# HELP estimator_procstat_system_jiffies_delta Last interval delta system jiffies.\n")
-		_, _ = fmt.Fprintf(w, "# TYPE estimator_procstat_system_jiffies_delta gauge\n")
-		_, _ = fmt.Fprintf(w, "estimator_procstat_system_jiffies_delta %d\n", s.lastDSystem.Load())
+		_, _ = fmt.Fprintf(w, "# HELP estimator_procstat_jiffies_delta Last interval delta jiffies by time type from aggregate cpu line.\n")
+		_, _ = fmt.Fprintf(w, "# TYPE estimator_procstat_jiffies_delta gauge\n")
+		for _, timeType := range timeTypes {
+			_, _ = fmt.Fprintf(w, "estimator_procstat_jiffies_delta{mode=%q,node_name=%q} %d\n", timeType, s.nodeName, deltas[timeType])
+		}
 	})
 	srv := &http.Server{Addr: addr, Handler: mux}
 	return srv.ListenAndServe()
@@ -75,7 +92,9 @@ func (s *estimatorServer) handleConn(c net.Conn) {
 		s.logger.Warn("predict failed", "error", err)
 		return
 	}
-	s.lastPowerW.Store(math.Float64bits(pw))
+	s.mu.Lock()
+	s.lastPowerW = math.Float64bits(pw)
+	s.mu.Unlock()
 	resp := map[string]float64{"power_watts": pw}
 	line, err := json.Marshal(resp)
 	if err != nil {
@@ -98,16 +117,19 @@ func (s *estimatorServer) predictOnce() (float64, error) {
 	if !s.prevInit {
 		s.prev = cur
 		s.prevInit = true
-		s.lastDUser.Store(0)
-		s.lastDSystem.Store(0)
+		s.lastDeltas = make(map[string]uint64, len(cur.Times))
+		for timeType := range cur.Times {
+			s.lastDeltas[timeType] = 0
+		}
 		return s.model.predictWatts(0, 0), nil
 	}
 
-	dUser, dSystem := subJiffies(cur, s.prev)
+	deltas := subJiffies(cur, s.prev)
 	s.prev = cur
-	s.lastDUser.Store(dUser)
-	s.lastDSystem.Store(dSystem)
+	s.lastDeltas = deltas
 
+	dUser := deltas["user"]
+	dSystem := deltas["system"]
 	return s.model.predictWatts(dUser, dSystem), nil
 }
 

@@ -10,16 +10,19 @@ func TestParseAggregateCPULine(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if j.User != 1 || j.Nice != 2 || j.System != 3 || j.Idle != 4 {
+	if j.Times["user"] != 1 || j.Times["nice"] != 2 || j.Times["system"] != 3 || j.Times["idle"] != 4 {
 		t.Fatalf("unexpected jiffies: %+v", j)
+	}
+	if j.Times["guest_nice"] != 10 {
+		t.Fatalf("unexpected guest_nice: %d", j.Times["guest_nice"])
 	}
 }
 
 func TestSubJiffies(t *testing.T) {
-	a := CPUJiffies{User: 100, System: 50}
-	b := CPUJiffies{User: 10, System: 5}
-	dU, dS := subJiffies(a, b)
-	if dU != 90 || dS != 45 {
-		t.Fatalf("dUser=%d dSystem=%d", dU, dS)
+	a := CPUJiffies{Times: map[string]uint64{"user": 100, "system": 50, "iowait": 8}}
+	b := CPUJiffies{Times: map[string]uint64{"user": 10, "system": 5, "iowait": 3}}
+	deltas := subJiffies(a, b)
+	if deltas["user"] != 90 || deltas["system"] != 45 || deltas["iowait"] != 5 {
+		t.Fatalf("unexpected deltas=%+v", deltas)
 	}
 }

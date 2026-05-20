@@ -11,6 +11,7 @@ import (
 	"log/slog"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 )
 
@@ -19,6 +20,7 @@ func main() {
 	procRoot := getenv("ESTIMATOR_PROC", "/proc")
 	coeffPath := os.Getenv("ESTIMATOR_COEFFICIENTS")
 	metricsAddr := os.Getenv("ESTIMATOR_METRICS_LISTEN")
+	nodeName := resolveNodeName()
 
 	logLevel := slog.LevelInfo
 	if os.Getenv("ESTIMATOR_LOG_DEBUG") == "1" {
@@ -32,7 +34,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	srv := newServer(logger, procRoot, model)
+	srv := newServer(logger, procRoot, nodeName, model)
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
@@ -58,4 +60,17 @@ func getenv(key, def string) string {
 		return v
 	}
 	return def
+}
+
+func resolveNodeName() string {
+	for _, key := range []string{"ESTIMATOR_NODE_NAME", "NODE_NAME"} {
+		if v := strings.TrimSpace(os.Getenv(key)); v != "" {
+			return v
+		}
+	}
+	hostname, err := os.Hostname()
+	if err == nil && strings.TrimSpace(hostname) != "" {
+		return strings.TrimSpace(hostname)
+	}
+	return "unknown"
 }

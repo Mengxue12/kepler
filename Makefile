@@ -247,6 +247,29 @@ deploy: ## Deploy Kepler to K8s cluster
 undeploy: ## Deploy removal from K8s cluster
 	kubectl delete -k manifests/k8s --ignore-not-found=true
 
+
+.PHONY: generate-kustomization
+generate-kustomization: ## Generate Kustomization file for Kepler estimator
+	kubectl kustomize manifests/k8s | \
+	sed -e "s|<KEPLER_IMAGE>|$(KEPLER_IMAGE)|g"
+
+.PHONY: deploy-estimator
+deploy-estimator: ## Deploy Kepler estimator to K8s cluster
+	kubectl kustomize manifests/overlays/estimator | \
+	sed -e "s|<KEPLER_IMAGE>|$(KEPLER_IMAGE)|g" | \
+	sed -e "s|<ESTIMATOR_IMAGE>|$(ESTIMATOR_IMAGE)|g" | \
+	kubectl apply --server-side --force-conflicts -f -
+
+.PHONY: undeploy-estimator
+undeploy-estimator: ## Undeploy Kepler estimator from K8s cluster
+	kubectl delete -k manifests/overlays/estimator --ignore-not-found=true
+
+.PHONY: generate-kustomization-estimator
+generate-kustomization-estimator: ## Generate Kustomization file for Kepler estimator
+	kubectl kustomize manifests/overlays/estimator | \
+	sed -e "s|<KEPLER_IMAGE>|$(KEPLER_IMAGE)|g" | \
+	sed -e "s|<ESTIMATOR_IMAGE>|$(ESTIMATOR_IMAGE)|g"
+
 # docker_tag accepts an image:tag and a list of additional tags comma-separated
 # it tags the image with the additional tags
 # E.g. given foo:bar, a,b,c, it will tag foo:bar as foo:a, foo:b, foo:c
