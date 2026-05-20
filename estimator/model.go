@@ -27,9 +27,9 @@ type LinearModel struct {
 
 func defaultModel() LinearModel {
 	return LinearModel{
-		InterceptWatts:      1.8,
-		WattsPerUserJiffy:   0.012,
-		WattsPerSystemJiffy: 0.018,
+		InterceptWatts:      2.14276,
+		WattsPerUserJiffy:   0.00831919,
+		WattsPerSystemJiffy: 0.00180415,
 		maxClamp:            20,
 		minClamp:            1,
 	}
