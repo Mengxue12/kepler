@@ -15,7 +15,7 @@ RUN make build \
 	# GIT_COMMIT=${GIT_COMMIT} \
 	# GIT_BRANCH=${GIT_BRANCH}
 
-FROM registry.access.redhat.com/ubi9:latest
+FROM registry.access.redhat.com/ubi9:9.5
 
 COPY --from=builder /workspace/bin/kepler-release /usr/bin/kepler
 
