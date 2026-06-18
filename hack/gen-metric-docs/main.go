@@ -342,6 +342,12 @@ func main() {
 	} else {
 		fmt.Println("Created CPU info collector")
 	}
+	cpuFreqCollector, err := collector.NewCPUFreqCollector("/sys")
+	if err != nil {
+		fmt.Printf("Warning: Could not create CPU frequency collector: %v\n", err)
+	} else {
+		fmt.Println("Created CPU frequency collector")
+	}
 
 	// Extract metrics information from collectors
 	var allMetrics []MetricInfo
@@ -373,6 +379,17 @@ func main() {
 		}
 		fmt.Printf("Extracted %d CPU info metrics\n", len(cpuInfoMetrics))
 		allMetrics = append(allMetrics, cpuInfoMetrics...)
+	}
+
+	if cpuFreqCollector != nil {
+		fmt.Println("Extracting metrics from CPU frequency collector...")
+		cpuFreqMetrics, err := extractMetricsInfo(cpuFreqCollector)
+		if err != nil {
+			fmt.Printf("Failed to extract CPU frequency metrics: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Printf("Extracted %d CPU frequency metrics\n", len(cpuFreqMetrics))
+		allMetrics = append(allMetrics, cpuFreqMetrics...)
 	}
 
 	// Create mock redfish service for platform collector

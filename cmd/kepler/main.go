@@ -227,6 +227,7 @@ func createPrometheusExporter(
 	collectorOpts = append(collectorOpts,
 		prometheus.WithLogger(logger),
 		prometheus.WithProcFSPath(cfg.Host.ProcFS),
+		prometheus.WithSysFSPath(cfg.Host.SysFS),
 		prometheus.WithNodeName(cfg.Kube.Node),
 		prometheus.WithMetricsLevel(metricsLevel),
 	)

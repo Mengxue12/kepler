@@ -31,6 +31,7 @@ type Opts struct {
 	debugCollectors      map[string]bool
 	collectors           map[string]prom.Collector
 	procfs               string
+	sysfs                string
 	nodeName             string
 	metricsLevel         config.Level
 	platformDataProvider collector.RedfishDataProvider
@@ -74,6 +75,12 @@ func WithDebugCollectors(c []string) OptionFn {
 func WithProcFSPath(procfs string) OptionFn {
 	return func(o *Opts) {
 		o.procfs = procfs
+	}
+}
+
+func WithSysFSPath(sysfs string) OptionFn {
+	return func(o *Opts) {
+		o.sysfs = sysfs
 	}
 }
 
@@ -147,6 +154,7 @@ func CreateCollectors(pm Monitor, applyOpts ...OptionFn) (map[string]prom.Collec
 	opts := Opts{
 		logger:       slog.Default(),
 		procfs:       "/proc",
+		sysfs:        "/sys",
 		metricsLevel: config.MetricsLevelAll,
 	}
 	for _, apply := range applyOpts {
@@ -161,6 +169,12 @@ func CreateCollectors(pm Monitor, applyOpts ...OptionFn) (map[string]prom.Collec
 		return nil, err
 	}
 	collectors["cpu_info"] = cpuInfoCollector
+
+	cpuFreqCollector, err := collector.NewCPUFreqCollector(opts.sysfs)
+	if err != nil {
+		return nil, err
+	}
+	collectors["cpufreq"] = cpuFreqCollector
 
 	// Add platform collector if platform data provider is available
 	if opts.platformDataProvider != nil {
