@@ -29,7 +29,7 @@ func defaultModel() LinearModel {
 	return LinearModel{
 		InterceptWatts:      2.14276,
 		WattsPerUserJiffy:   0.00831919,
-		WattsPerSystemJiffy: 0.00180415,
+		WattsPerSystemJiffy: 0.0,
 		maxClamp:            20,
 		minClamp:            1,
 	}

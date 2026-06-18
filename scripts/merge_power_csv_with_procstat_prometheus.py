@@ -1,14 +1,15 @@
 #!/usr/bin/env python3
 """
 Read a power meter CSV (*-timestamp.csv: timestamp as Unix seconds + meter-platform_power),
-derive the time window, fetch estimator_procstat wide CSV from Prometheus
+derive the time window, fetch estimator_procstat + kepler_node_cpu_watts wide CSV from Prometheus
 (via scripts/fetch_prometheus_metrics.py), then merge into a training CSV.
 
 Default output columns match scripts/train_power_linear_regression.py:
-  timestamp, sys_time, usr_time, power_watt
+  timestamp, sys_time, usr_time, kepler_node_cpu_watts, power_watt
 
 (Prometheus columns are detected as estimator_procstat_*system* / *user*, e.g.
-estimator_procstat_system_jiffies_delta and estimator_procstat_user_jiffies_delta.)
+estimator_procstat_system_jiffies_delta and estimator_procstat_user_jiffies_delta,
+plus kepler_node_cpu_watts for node_name="raspberrypi" by default.)
 
 Uses only the standard library.
 
@@ -48,6 +49,7 @@ POWER_TS_NAMES = ("timestamp", "ts")
 POWER_VALUE_NAMES = ("meter-platform_power",)
 SYS_RE = re.compile(r"estimator_procstat.*system", re.IGNORECASE)
 USR_RE = re.compile(r"estimator_procstat.*user", re.IGNORECASE)
+KEPLER_CPU_WATTS_RE = re.compile(r"kepler_node_cpu_watts", re.IGNORECASE)
 _UNIX_TS_RE = re.compile(r"^[+-]?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?$")
 
 
@@ -101,6 +103,33 @@ def pick_sys_usr_columns(header: list[str]) -> tuple[str, str]:
     return sys_col, usr_col
 
 
+def pick_kepler_cpu_watts_column(header: list[str], node_name: str) -> str:
+    matches = [
+        h
+        for h in header
+        if KEPLER_CPU_WATTS_RE.search(h) and h.strip().lower() not in {"timestamp", "time"}
+    ]
+    if not matches:
+        raise SystemExit(
+            "Could not auto-detect kepler_node_cpu_watts column. "
+            f"Header was: {header}. Use --kepler-cpu-watts-col."
+        )
+    if len(matches) == 1:
+        return matches[0]
+
+    node_needle = f'node_name="{node_name}"'.lower()
+    node_needle_csv = f'node_name=""{node_name}""'.lower()
+    for h in matches:
+        hl = h.lower()
+        if node_needle in hl or node_needle_csv in hl:
+            return h
+
+    raise SystemExit(
+        "Multiple kepler_node_cpu_watts columns found and none matched "
+        f'node_name="{node_name}". Matches were: {matches}. Use --kepler-cpu-watts-col.'
+    )
+
+
 @dataclass(frozen=True)
 class PowerRow:
     t: float
@@ -136,13 +165,16 @@ class PromRow:
     ts_text: str
     sys_time: float
     usr_time: float
+    kepler_node_cpu_watts: float
 
 
 def read_prom_wide_csv(
     source: Path | TextIO,
     sys_col: str | None,
     usr_col: str | None,
+    kepler_cpu_watts_col: str | None,
     *,
+    node_name: str,
     ts_format: str = "auto",
     source_label: str = "",
 ) -> list[PromRow]:
@@ -164,16 +196,31 @@ def read_prom_wide_csv(
             if sys_col and usr_col
             else pick_sys_usr_columns(header)
         )
+        kc = kepler_cpu_watts_col or pick_kepler_cpu_watts_column(header, node_name)
         out: list[PromRow] = []
         for i, row in enumerate(r, start=2):
             try:
                 ts_raw = row[ts_col].strip()
                 dt = parse_timestamp(ts_raw, ts_format)
-                st = float(row[sc].strip())
-                ut = float(row[uc].strip())
+                st_raw = row[sc].strip()
+                ut_raw = row[uc].strip()
+                kw_raw = row[kc].strip()
+                if not st_raw or not ut_raw or not kw_raw:
+                    continue
+                st = float(st_raw)
+                ut = float(ut_raw)
+                kw = float(kw_raw)
             except (KeyError, ValueError, AttributeError) as e:
                 raise SystemExit(f"{label}:{i}: bad row ({e})") from e
-            out.append(PromRow(t=dt.timestamp(), ts_text=ts_raw, sys_time=st, usr_time=ut))
+            out.append(
+                PromRow(
+                    t=dt.timestamp(),
+                    ts_text=ts_raw,
+                    sys_time=st,
+                    usr_time=ut,
+                    kepler_node_cpu_watts=kw,
+                )
+            )
     finally:
         if close_f:
             f.close()
@@ -188,6 +235,7 @@ def fetch_prometheus_csv(
     end: datetime,
     step: str,
     name_prefixes: list[str],
+    queries: list[str],
     csv_timestamp: str,
     print_cmd: bool,
 ) -> str:
@@ -211,6 +259,8 @@ def fetch_prometheus_csv(
     ]
     for pfx in name_prefixes:
         cmd.extend(["--name-prefix", pfx])
+    for query in queries:
+        cmd.extend(["--query", query])
     if print_cmd:
         print("Running:", " ".join(cmd), file=sys.stderr)
     proc = subprocess.run(
@@ -227,24 +277,24 @@ def fetch_prometheus_csv(
     return proc.stdout
 
 
-def merge_exact(power: list[PowerRow], prom: list[PromRow]) -> list[tuple[str, float, float, float]]:
+def merge_exact(power: list[PowerRow], prom: list[PromRow]) -> list[tuple[str, float, float, float, float]]:
     by_sec: dict[int, PromRow] = {}
     for pr in prom:
         by_sec[int(pr.t)] = pr
-    merged: list[tuple[str, float, float, float]] = []
+    merged: list[tuple[str, float, float, float, float]] = []
     for pw in power:
         pr = by_sec.get(int(pw.t))
         if pr is None:
             continue
-        merged.append((pw.ts_text, pr.sys_time, pr.usr_time, pw.power))
+        merged.append((pw.ts_text, pr.sys_time, pr.usr_time, pr.kepler_node_cpu_watts, pw.power))
     return merged
 
 
-def merge_nearest(power: list[PowerRow], prom: list[PromRow], tol_sec: float) -> list[tuple[str, float, float, float]]:
+def merge_nearest(power: list[PowerRow], prom: list[PromRow], tol_sec: float) -> list[tuple[str, float, float, float, float]]:
     if not prom:
         return []
     ts_list = [p.t for p in prom]
-    merged: list[tuple[str, float, float, float]] = []
+    merged: list[tuple[str, float, float, float, float]] = []
     for pw in power:
         i = bisect.bisect_left(ts_list, pw.t)
         best_j: int | None = None
@@ -258,7 +308,7 @@ def merge_nearest(power: list[PowerRow], prom: list[PromRow], tol_sec: float) ->
         if best_j is None or best_d > tol_sec:
             continue
         pr = prom[best_j]
-        merged.append((pw.ts_text, pr.sys_time, pr.usr_time, pw.power))
+        merged.append((pw.ts_text, pr.sys_time, pr.usr_time, pr.kepler_node_cpu_watts, pw.power))
     return merged
 
 
@@ -320,7 +370,12 @@ def main() -> None:
         default=None,
         help="Metric name prefix for fetch (repeatable). Default: estimator_procstat",
     )
-    p.add_argument("--step", default="15s", help="Prometheus range step (default: 15s)")
+    p.add_argument(
+        "--kepler-node-name",
+        default="raspberrypi",
+        help="node_name label used for kepler_node_cpu_watts fetch/detection (default: raspberrypi)",
+    )
+    p.add_argument("--step", default="1s", help="Prometheus range step (default: 1s)")
     p.add_argument(
         "--csv-timestamp",
         choices=("rfc3339", "unix"),
@@ -336,6 +391,11 @@ def main() -> None:
     p.add_argument("--sys-col", default=None, help="Prometheus CSV column for system feature")
     p.add_argument("--usr-col", default=None, help="Prometheus CSV column for user feature")
     p.add_argument(
+        "--kepler-cpu-watts-col",
+        default=None,
+        help="Prometheus CSV column for kepler_node_cpu_watts (default: auto-detect by --kepler-node-name)",
+    )
+    p.add_argument(
         "--print-fetch-cmd",
         action="store_true",
         help="Print the fetch_prometheus_metrics.py invocation to stderr",
@@ -350,12 +410,15 @@ def main() -> None:
     end_dt = datetime.fromtimestamp(power_rows[-1].t, tz=timezone.utc)
 
     prefixes = args.name_prefix if args.name_prefix else ["estimator_procstat"]
+    kepler_queries = [f'kepler_node_cpu_watts{{node_name="{args.kepler_node_name}"}}']
 
     if args.prom_csv:
         prom_rows = read_prom_wide_csv(
             args.prom_csv,
             args.sys_col,
             args.usr_col,
+            args.kepler_cpu_watts_col,
+            node_name=args.kepler_node_name,
             ts_format="auto",
         )
     else:
@@ -365,6 +428,7 @@ def main() -> None:
             end=end_dt,
             step=args.step,
             name_prefixes=prefixes,
+            queries=kepler_queries,
             csv_timestamp=args.csv_timestamp,
             print_cmd=args.print_fetch_cmd,
         )
@@ -372,6 +436,8 @@ def main() -> None:
             io.StringIO(raw),
             args.sys_col,
             args.usr_col,
+            args.kepler_cpu_watts_col,
+            node_name=args.kepler_node_name,
             ts_format=args.csv_timestamp,
             source_label="<fetch_prometheus_metrics.py stdout>",
         )
@@ -389,14 +455,14 @@ def main() -> None:
 
     buf = io.StringIO()
     fieldnames = (
-        ("timestamp", "sys_time", "usr_time", "power_watt")
+        ("timestamp", "sys_time", "usr_time", "kepler_node_cpu_watts", "power_watt")
         if args.training_columns
-        else ("timestamp", "system", "user", "power")
+        else ("timestamp", "system", "user", "kepler_node_cpu_watts", "power")
     )
     w = csv.writer(buf, lineterminator="\n")
     w.writerow(fieldnames)
-    for ts, st, ut, pw in merged:
-        w.writerow([ts, st, ut, pw])
+    for ts, st, ut, kw, pw in merged:
+        w.writerow([ts, st, ut, kw, pw])
     text = buf.getvalue()
 
     if args.preview > 0:
