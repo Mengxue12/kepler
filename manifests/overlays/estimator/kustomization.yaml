@@ -8,13 +8,16 @@
 # Prometheus Operator: ServiceMonitor `kepler` (http) + `kepler-estimator` (metrics).
 #
 # Build / push the sidecar image from repo root:
-#   docker build -f estimator/Dockerfile -t <your-registry>/kepler-estimator:<tag> estimator
+#   make build-estimator-cross
 #
 # Deploy:
 #   kubectl apply -k manifests/overlays/estimator
+#   # or: make deploy-estimator
 #
-# Set the sidecar image (example):
-#   (cd manifests/overlays/estimator && kustomize edit set image kepler-estimator=<registry>/kepler-estimator:<tag>)
+# Bump images (example):
+#   (cd manifests/overlays/estimator && kustomize edit set image \
+#     '<KEPLER_IMAGE>=docker.io/mengxue12/kepler:v0.11.2-latest' \
+#     '<ESTIMATOR_IMAGE>=docker.io/mengxue12/power-estimator:kepler-v0.11.2-latest')
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
@@ -29,7 +32,8 @@ patches:
   - path: daemonset.yaml
   - path: servicemonitor.yaml
 
+# Must match image: placeholders in ../../k8s and daemonset-arm.yaml
 images:
-  - name: kepler-estimator
-    newName: quay.io/sustainable-computing-io/kepler-estimator
-    newTag: latest
+  - name: <ESTIMATOR_IMAGE>
+    newName: docker.io/mengxue12/power-estimator
+    newTag: kepler-v0.11.2-latest

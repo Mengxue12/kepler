@@ -1,0 +1,23 @@
+# Overlay: cloud deploy (non-ARM only, high-granularity sampling, pinned image).
+#
+# - DaemonSet `kepler`: nodeAffinity excludes arm64/aarch64; no estimator sidecar.
+# - monitor.interval and ServiceMonitor scrape interval: 1s (same as high_granularity).
+# - No ARM DaemonSet and no estimator resources.
+#
+# Deploy:
+#   kubectl apply -k manifests/overlays/cloud
+#   # or: make deploy-cloud
+#
+# Bump image (example):
+#   (cd manifests/overlays/cloud && kustomize edit set image \
+#     '<KEPLER_IMAGE>=docker.io/mengxue12/kepler:v0.11.2-latest')
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - ../../k8s
+
+patches:
+  - path: daemonset.yaml
+  - path: configmap.yaml
+  - path: servicemonitor.yaml

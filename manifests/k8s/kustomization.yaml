@@ -15,3 +15,9 @@ labels:
     pairs:
       app.kubernetes.io/name: kepler
       app.kubernetes.io/part-of: kepler
+
+# Must match image: <KEPLER_IMAGE> in daemonset.yaml
+images:
+  - name: <KEPLER_IMAGE>
+    newName: docker.io/mengxue12/kepler
+    newTag: v0.11.2-latest
