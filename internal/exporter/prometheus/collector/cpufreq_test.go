@@ -5,6 +5,7 @@ package collector
 
 import (
 	"errors"
+	"log/slog"
 	"sync"
 	"testing"
 
@@ -55,7 +56,7 @@ func TestNewCPUFreqCollectorWithReader(t *testing.T) {
 			return sampleCpufreqPolicies(), nil
 		},
 	}
-	collector := newCPUFreqCollectorWithReader(mockReader)
+	collector := newCPUFreqCollectorWithReader(mockReader, slog.Default())
 	assert.NotNil(t, collector)
 	assert.Equal(t, mockReader, collector.reader)
 	assert.Contains(t, collector.desc.String(), "kepler_node_cpu_scaling_frequency_hertz")
@@ -68,7 +69,7 @@ func TestCPUFreqCollector_Describe(t *testing.T) {
 			return sampleCpufreqPolicies(), nil
 		},
 	}
-	collector := newCPUFreqCollectorWithReader(mockReader)
+	collector := newCPUFreqCollectorWithReader(mockReader, slog.Default())
 
 	ch := make(chan *prometheus.Desc, 1)
 	collector.Describe(ch)
@@ -84,7 +85,7 @@ func TestCPUFreqCollector_Collect_Success(t *testing.T) {
 			return sampleCpufreqPolicies(), nil
 		},
 	}
-	collector := newCPUFreqCollectorWithReader(mockReader)
+	collector := newCPUFreqCollectorWithReader(mockReader, slog.Default())
 
 	ch := make(chan prometheus.Metric, 10)
 	collector.Collect(ch)
@@ -124,7 +125,7 @@ func TestCPUFreqCollector_Collect_Error(t *testing.T) {
 			return nil, errors.New("failed to read cpufreq policies")
 		},
 	}
-	collector := newCPUFreqCollectorWithReader(mockReader)
+	collector := newCPUFreqCollectorWithReader(mockReader, slog.Default())
 
 	ch := make(chan prometheus.Metric, 10)
 	collector.Collect(ch)
@@ -144,7 +145,7 @@ func TestCPUFreqCollector_Collect_Concurrency(t *testing.T) {
 			return sampleCpufreqPolicies(), nil
 		},
 	}
-	collector := newCPUFreqCollectorWithReader(mockReader)
+	collector := newCPUFreqCollectorWithReader(mockReader, slog.Default())
 
 	const numGoroutines = 10
 	var wg sync.WaitGroup

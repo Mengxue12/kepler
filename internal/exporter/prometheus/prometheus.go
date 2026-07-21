@@ -170,7 +170,7 @@ func CreateCollectors(pm Monitor, applyOpts ...OptionFn) (map[string]prom.Collec
 	}
 	collectors["cpu_info"] = cpuInfoCollector
 
-	cpuFreqCollector, err := collector.NewCPUFreqCollector(opts.sysfs)
+	cpuFreqCollector, err := collector.NewCPUFreqCollectorWithLogger(opts.sysfs, opts.logger)
 	if err != nil {
 		return nil, err
 	}

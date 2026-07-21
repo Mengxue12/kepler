@@ -12,7 +12,10 @@ import (
 	"strings"
 )
 
-const cpufreqPolicyGlob = "devices/system/cpu/cpufreq/policy*"
+const (
+	cpufreqPolicyGlob = "devices/system/cpu/cpufreq/policy*"
+	cpufreqCPUGlob    = "devices/system/cpu/cpu[0-9]*/cpufreq"
+)
 
 // CpufreqPolicy holds current frequency data for a cpufreq policy.
 type CpufreqPolicy struct {
@@ -47,19 +50,43 @@ func CpufreqPresent(sysfsPath string) bool {
 }
 
 // ReadCpufreqPolicies reads scaling_cur_freq and affected_cpus from
-// /sys/devices/system/cpu/cpufreq/policy*/.
+// /sys/devices/system/cpu/cpufreq/policy*/. If no policies exist, it falls
+// back to per-CPU paths under /sys/devices/system/cpu/cpu*/cpufreq/.
 func ReadCpufreqPolicies(sysfsPath string) ([]CpufreqPolicy, error) {
-	policyPaths, err := filepath.Glob(filepath.Join(sysfsPath, cpufreqPolicyGlob))
+	policies, err := readCpufreqPolicyPaths(sysfsPath, cpufreqPolicyGlob, readCpufreqPolicy)
+	if err != nil {
+		return nil, err
+	}
+	if len(policies) > 0 {
+		return policies, nil
+	}
+
+	perCPU, err := readCpufreqPolicyPaths(sysfsPath, cpufreqCPUGlob, readPerCPUcpufreq)
+	if err != nil {
+		return nil, err
+	}
+	perCPU = dedupeCpufreqPolicies(perCPU)
+	if len(perCPU) == 0 {
+		return nil, fmt.Errorf("no cpufreq policies found under %s", sysfsPath)
+	}
+	return perCPU, nil
+}
+
+func readCpufreqPolicyPaths(
+	sysfsPath, globPattern string,
+	readFn func(string) (CpufreqPolicy, error),
+) ([]CpufreqPolicy, error) {
+	policyPaths, err := filepath.Glob(filepath.Join(sysfsPath, globPattern))
 	if err != nil {
 		return nil, err
 	}
 	if len(policyPaths) == 0 {
-		return nil, fmt.Errorf("no cpufreq policies found under %s", sysfsPath)
+		return nil, nil
 	}
 
 	policies := make([]CpufreqPolicy, 0, len(policyPaths))
 	for _, policyPath := range policyPaths {
-		policy, err := readCpufreqPolicy(policyPath)
+		policy, err := readFn(policyPath)
 		if err != nil {
 			return nil, fmt.Errorf("read cpufreq policy %s: %w", policyPath, err)
 		}
@@ -108,13 +135,82 @@ func readCpufreqPolicy(policyPath string) (CpufreqPolicy, error) {
 	}, nil
 }
 
+func readPerCPUcpufreq(cpuCpufreqPath string) (CpufreqPolicy, error) {
+	cpuName := filepath.Base(filepath.Dir(cpuCpufreqPath))
+	index, err := strconv.Atoi(strings.TrimPrefix(cpuName, "cpu"))
+	if err != nil {
+		return CpufreqPolicy{}, fmt.Errorf("invalid cpu name %q: %w", cpuName, err)
+	}
+
+	affectedCPUs := []int{index}
+	if affectedRaw, err := os.ReadFile(filepath.Join(cpuCpufreqPath, "affected_cpus")); err == nil {
+		if parsed, parseErr := parseCPUList(strings.TrimSpace(string(affectedRaw))); parseErr == nil && len(parsed) > 0 {
+			affectedCPUs = parsed
+		}
+	}
+
+	freqRaw, err := os.ReadFile(filepath.Join(cpuCpufreqPath, "scaling_cur_freq"))
+	if err != nil {
+		return CpufreqPolicy{}, err
+	}
+
+	curFreqKHz, err := strconv.ParseUint(strings.TrimSpace(string(freqRaw)), 10, 64)
+	if err != nil {
+		return CpufreqPolicy{}, fmt.Errorf("parse scaling_cur_freq: %w", err)
+	}
+
+	return CpufreqPolicy{
+		Name:         cpuName,
+		Index:        index,
+		AffectedCPUs: affectedCPUs,
+		CurFreqKHz:   curFreqKHz,
+	}, nil
+}
+
+func dedupeCpufreqPolicies(policies []CpufreqPolicy) []CpufreqPolicy {
+	if len(policies) <= 1 {
+		return policies
+	}
+
+	seen := make(map[string]struct{}, len(policies))
+	unique := make([]CpufreqPolicy, 0, len(policies))
+	for _, policy := range policies {
+		key := cpuListKey(policy.AffectedCPUs)
+		if _, exists := seen[key]; exists {
+			continue
+		}
+		seen[key] = struct{}{}
+		unique = append(unique, policy)
+	}
+	return unique
+}
+
+func cpuListKey(cpus []int) string {
+	if len(cpus) == 0 {
+		return ""
+	}
+	sorted := append([]int(nil), cpus...)
+	sort.Ints(sorted)
+	parts := make([]string, len(sorted))
+	for i, cpu := range sorted {
+		parts[i] = strconv.Itoa(cpu)
+	}
+	return strings.Join(parts, ",")
+}
+
 func parseCPUList(raw string) ([]int, error) {
+	raw = strings.TrimSpace(raw)
 	if raw == "" {
 		return nil, nil
 	}
 
+	// Kernel exports space- or comma-separated lists (e.g. "0 1 2 3" on RPi, "0-3" on x86).
+	parts := strings.FieldsFunc(raw, func(c rune) bool {
+		return c == ' ' || c == ',' || c == '\t'
+	})
+
 	var cpus []int
-	for _, part := range strings.Split(raw, ",") {
+	for _, part := range parts {
 		part = strings.TrimSpace(part)
 		if part == "" {
 			continue

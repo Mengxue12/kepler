@@ -5,6 +5,7 @@ package collector
 
 import (
 	"fmt"
+	"log/slog"
 	"strconv"
 	"sync"
 
@@ -36,21 +37,31 @@ func newCpufreqReader(sysfsPath string) (cpufreqReader, error) {
 type cpuFreqCollector struct {
 	sync.Mutex
 
+	logger *slog.Logger
 	reader cpufreqReader
 	desc   *prom.Desc
 }
 
 // NewCPUFreqCollector creates a CPU frequency collector using a sysfs mount path.
 func NewCPUFreqCollector(sysfsPath string) (*cpuFreqCollector, error) {
+	return NewCPUFreqCollectorWithLogger(sysfsPath, slog.Default())
+}
+
+// NewCPUFreqCollectorWithLogger creates a CPU frequency collector with a logger.
+func NewCPUFreqCollectorWithLogger(sysfsPath string, logger *slog.Logger) (*cpuFreqCollector, error) {
 	reader, err := newCpufreqReader(sysfsPath)
 	if err != nil {
 		return nil, fmt.Errorf("creating cpufreq reader failed: %w", err)
 	}
-	return newCPUFreqCollectorWithReader(reader), nil
+	if logger == nil {
+		logger = slog.Default()
+	}
+	return newCPUFreqCollectorWithReader(reader, logger), nil
 }
 
-func newCPUFreqCollectorWithReader(reader cpufreqReader) *cpuFreqCollector {
+func newCPUFreqCollectorWithReader(reader cpufreqReader, logger *slog.Logger) *cpuFreqCollector {
 	return &cpuFreqCollector{
+		logger: logger.With("collector", "cpufreq"),
 		reader: reader,
 		desc: prom.NewDesc(
 			prom.BuildFQName(keplerNS, "node", "cpu_scaling_frequency_hertz"),
@@ -71,6 +82,7 @@ func (c *cpuFreqCollector) Collect(ch chan<- prom.Metric) {
 
 	policies, err := c.reader.Policies()
 	if err != nil {
+		c.logger.Debug("Failed to read CPU frequency policies", "error", err)
 		return
 	}
 
