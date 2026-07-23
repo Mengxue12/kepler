@@ -28,7 +28,7 @@ spec:
       containers:
         - name: kepler
           image: <KEPLER_IMAGE>
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: Always
           securityContext:
             privileged: true
           command:

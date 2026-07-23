@@ -34,6 +34,9 @@ patches:
 
 # Must match image: placeholders in ../../k8s and daemonset-arm.yaml
 images:
+  - name: <KEPLER_IMAGE>
+    newName: docker.io/mengxue12/kepler
+    newTag: v0.11.2-latest
   - name: <ESTIMATOR_IMAGE>
     newName: docker.io/mengxue12/power-estimator
     newTag: kepler-v0.11.2-latest
