@@ -4,6 +4,10 @@
 package device
 
 import (
+	"fmt"
+	"os"
+	"path/filepath"
+	"syscall"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -38,6 +42,46 @@ func TestReadCpufreqPoliciesPerCPUFallback(t *testing.T) {
 	assert.Equal(t, 0, policies[0].Index)
 	assert.Equal(t, []int{0, 1, 2, 3}, policies[0].AffectedCPUs)
 	assert.Equal(t, uint64(1500000), policies[0].CurFreqKHz)
+}
+
+func TestReadCpufreqPolicyPathsSkipsBusy(t *testing.T) {
+	sysfsPath := t.TempDir()
+	policy0 := filepath.Join(sysfsPath, "devices/system/cpu/cpufreq/policy0")
+	policy1 := filepath.Join(sysfsPath, "devices/system/cpu/cpufreq/policy1")
+	require.NoError(t, os.MkdirAll(policy0, 0o755))
+	require.NoError(t, os.MkdirAll(policy1, 0o755))
+
+	readFn := func(policyPath string) (CpufreqPolicy, error) {
+		switch filepath.Base(policyPath) {
+		case "policy0":
+			return CpufreqPolicy{
+				Name:         "policy0",
+				Index:        0,
+				AffectedCPUs: []int{0, 1},
+				CurFreqKHz:   2400000,
+			}, nil
+		case "policy1":
+			return CpufreqPolicy{}, &os.PathError{
+				Op:   "open",
+				Path: filepath.Join(policyPath, "scaling_cur_freq"),
+				Err:  syscall.EBUSY,
+			}
+		default:
+			return CpufreqPolicy{}, fmt.Errorf("unexpected policy path %s", policyPath)
+		}
+	}
+
+	policies, err := readCpufreqPolicyPaths(sysfsPath, cpufreqPolicyGlob, readFn)
+	require.NoError(t, err)
+	require.Len(t, policies, 1)
+	assert.Equal(t, "policy0", policies[0].Name)
+	assert.Equal(t, uint64(2400000), policies[0].CurFreqKHz)
+}
+
+func TestIsBusyError(t *testing.T) {
+	assert.True(t, isBusyError(&os.PathError{Op: "open", Path: "scaling_cur_freq", Err: syscall.EBUSY}))
+	assert.False(t, isBusyError(&os.PathError{Op: "open", Path: "scaling_cur_freq", Err: syscall.EACCES}))
+	assert.False(t, isBusyError(fmt.Errorf("other error")))
 }
 
 func TestDedupeCpufreqPolicies(t *testing.T) {

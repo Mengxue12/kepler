@@ -4,12 +4,14 @@
 package device
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
+	"syscall"
 )
 
 const (
@@ -88,6 +90,11 @@ func readCpufreqPolicyPaths(
 	for _, policyPath := range policyPaths {
 		policy, err := readFn(policyPath)
 		if err != nil {
+			// Some platforms intermittently return EBUSY for scaling_cur_freq.
+			// Skip that policy so other readable CPUs can still be exported.
+			if isBusyError(err) {
+				continue
+			}
 			return nil, fmt.Errorf("read cpufreq policy %s: %w", policyPath, err)
 		}
 		policies = append(policies, policy)
@@ -98,6 +105,10 @@ func readCpufreqPolicyPaths(
 	})
 
 	return policies, nil
+}
+
+func isBusyError(err error) bool {
+	return errors.Is(err, syscall.EBUSY)
 }
 
 func readCpufreqPolicy(policyPath string) (CpufreqPolicy, error) {
