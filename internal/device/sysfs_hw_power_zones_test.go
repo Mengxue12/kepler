@@ -99,7 +99,7 @@ func TestBatteryZone_ExportsWhenCurrentAboveSentinel(t *testing.T) {
 	assert.Greater(t, e1.MicroJoules(), uint64(0))
 }
 
-func TestBatteryZone_ChargingSentinelLogsAndNoPower(t *testing.T) {
+func TestBatteryZone_ChargingSentinelOmitsReading(t *testing.T) {
 	sysfsRoot := t.TempDir()
 	writeHWPowerFixtures(t, sysfsRoot, 1_000_000, 11_000_000, batteryCurrentChargingSentinel)
 
@@ -117,11 +117,7 @@ func TestBatteryZone_ChargingSentinelLogsAndNoPower(t *testing.T) {
 	require.NotNil(t, battery)
 
 	_, err := battery.Energy()
-	require.NoError(t, err)
-	time.Sleep(15 * time.Millisecond)
-	e1, err := battery.Energy()
-	require.NoError(t, err)
-	assert.Equal(t, uint64(0), e1.MicroJoules())
+	assert.ErrorIs(t, err, ErrEnergyUnavailable)
 	assert.Contains(t, buf.String(), "Device is charging now, no current reported.")
 }
 

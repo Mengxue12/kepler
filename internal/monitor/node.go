@@ -5,6 +5,8 @@ package monitor
 
 import (
 	"errors"
+
+	"github.com/sustainable-computing-io/kepler/internal/device"
 )
 
 func (pm *PowerMonitor) calculateNodePower(prevNode, newNode *Node) error {
@@ -38,6 +40,11 @@ func (pm *PowerMonitor) calculateNodePower(prevNode, newNode *Node) error {
 	for _, zone := range zones {
 		absEnergy, err := zone.Energy()
 		if err != nil {
+			if errors.Is(err, device.ErrEnergyUnavailable) {
+				pm.logger.Debug("Energy unavailable for zone; omitting from snapshot",
+					"zone", zone.Name(), "index", zone.Index())
+				continue
+			}
 			retErr = errors.Join(err)
 			pm.logger.Warn("Could not read energy for zone", "zone", zone.Name(), "index", zone.Index(), "error", err)
 			continue
@@ -111,6 +118,11 @@ func (pm *PowerMonitor) firstNodeRead(node *Node) error {
 	for _, zone := range zones {
 		energy, err := zone.Energy()
 		if err != nil {
+			if errors.Is(err, device.ErrEnergyUnavailable) {
+				pm.logger.Debug("Energy unavailable for zone; omitting from snapshot",
+					"zone", zone.Name(), "index", zone.Index())
+				continue
+			}
 			retErr = errors.Join(err)
 			pm.logger.Warn("Could not read energy for zone", "zone", zone.Name(), "index", zone.Index(), "error", err)
 			continue

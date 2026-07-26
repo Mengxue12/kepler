@@ -4,6 +4,7 @@
 package device
 
 import (
+	"errors"
 	"fmt"
 	"io/fs"
 	"log/slog"
@@ -14,6 +15,11 @@ import (
 	"sync"
 	"time"
 )
+
+// ErrEnergyUnavailable indicates a zone has no usable reading for this sample
+// (e.g. battery charging with no current reported). Callers should omit the zone
+// from exported metrics rather than reporting zero.
+var ErrEnergyUnavailable = errors.New("energy reading unavailable")
 
 const (
 	acpiDevicePrefix    = "ACPI000D:0"
@@ -168,6 +174,27 @@ type batteryEnergyZone struct {
 	loggedCharging bool
 }
 
+// Energy omits the battery zone while charging (current_now sentinel) so exporters
+// do not emit zero-valued metrics for zone="battery".
+func (z *batteryEnergyZone) Energy() (Energy, error) {
+	currentUA, err := readInt64File(z.currentPath)
+	if err != nil {
+		return 0, err
+	}
+	if currentUA == batteryCurrentChargingSentinel {
+		if !z.loggedCharging {
+			z.logger.Info("Device is charging now, no current reported.")
+			z.loggedCharging = true
+		}
+		z.mu.Lock()
+		z.lastSample = time.Time{}
+		z.mu.Unlock()
+		return 0, ErrEnergyUnavailable
+	}
+	z.loggedCharging = false
+	return z.powerIntegratingZone.Energy()
+}
+
 func (z *batteryEnergyZone) batteryPower() (Power, error) {
 	voltageUV, err := readInt64File(z.voltagePath)
 	if err != nil {
@@ -179,16 +206,10 @@ func (z *batteryEnergyZone) batteryPower() (Power, error) {
 	}
 
 	if currentUA == batteryCurrentChargingSentinel {
-		if !z.loggedCharging {
-			z.logger.Info("Device is charging now, no current reported.")
-			z.loggedCharging = true
-		}
-		return 0, nil
+		return 0, ErrEnergyUnavailable
 	}
-	z.loggedCharging = false
-
 	if currentUA <= batteryCurrentChargingSentinel {
-		return 0, nil
+		return 0, ErrEnergyUnavailable
 	}
 	if voltageUV <= 0 {
 		return 0, fmt.Errorf("non-positive %s value: %d", batteryVoltageFile, voltageUV)
