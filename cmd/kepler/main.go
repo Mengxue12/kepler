@@ -281,5 +281,6 @@ func createCPUMeter(logger *slog.Logger, cfg *config.Config) (device.CPUPowerMet
 		device.WithEstimatorMaxPlatformWatts(cfg.PowerEstimator.MaxPlatformWatts),
 		device.WithEstimatorSocketPath(cfg.PowerEstimator.SocketPath),
 		device.WithEstimatorSocketTimeout(cfg.PowerEstimator.SocketTimeout),
+		device.WithEstimatorSysFSPath(cfg.Host.SysFS),
 	)
 }

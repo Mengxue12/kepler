@@ -52,6 +52,13 @@ func WithEstimatorSocketTimeout(d time.Duration) NodePowerEstimatorOption {
 	}
 }
 
+// WithEstimatorSysFSPath sets the host sysfs root used to discover optional ACPI/battery zones.
+func WithEstimatorSysFSPath(path string) NodePowerEstimatorOption {
+	return func(e *nodePowerEstimator) {
+		e.sysfsPath = strings.TrimSpace(path)
+	}
+}
+
 // nodePowerEstimator implements CPUPowerMeter by integrating platform power between Energy()
 // samples. Power is either obtained from a unix-socket JSON sidecar when configured and
 // available, or from a constant max-platform-watts ceiling (legacy fake estimator behavior).
@@ -59,6 +66,7 @@ type nodePowerEstimator struct {
 	logger *slog.Logger
 
 	procPath         string
+	sysfsPath        string
 	maxPlatformWatts float64
 
 	socketPath    string
@@ -69,7 +77,8 @@ type nodePowerEstimator struct {
 	cumulative Energy
 	lastSample time.Time
 
-	zone *estimatorEnergyZone
+	zone        *estimatorEnergyZone
+	cachedZones []EnergyZone
 }
 
 type estimatorEnergyZone struct {
@@ -131,7 +140,13 @@ func (e *nodePowerEstimator) Init() error {
 }
 
 func (e *nodePowerEstimator) Zones() ([]EnergyZone, error) {
-	return []EnergyZone{e.zone}, nil
+	if len(e.cachedZones) != 0 {
+		return e.cachedZones, nil
+	}
+	zones := []EnergyZone{e.zone}
+	zones = append(zones, discoverHardwarePowerZones(e.sysfsPath, e.logger)...)
+	e.cachedZones = zones
+	return e.cachedZones, nil
 }
 
 func (e *nodePowerEstimator) PrimaryEnergyZone() (EnergyZone, error) {

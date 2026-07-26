@@ -19,6 +19,8 @@ const (
 	ZonePSys    Zone = "psys"
 	ZonePP0     Zone = "pp0" // Power Plane 0 - processor cores
 	ZonePP1     Zone = "pp1" // Power Plane 1 - uncore (e.g., integrated GPU)
+	ZoneACPI    Zone = "acpi"
+	ZoneBattery Zone = "battery"
 )
 
 // zoneKey uniquely identifies a zone by name and index

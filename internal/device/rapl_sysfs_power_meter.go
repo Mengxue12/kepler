@@ -14,6 +14,7 @@ import (
 // raplPowerMeter implements CPUPowerMeter using sysfs
 type raplPowerMeter struct {
 	reader      sysfsReader
+	sysfsPath   string
 	cachedZones []EnergyZone
 	logger      *slog.Logger
 	zoneFilter  []string
@@ -58,6 +59,7 @@ func NewCPUPowerMeter(sysfsPath string, opts ...OptionFn) (*raplPowerMeter, erro
 
 	ret := &raplPowerMeter{
 		reader:     sysfsRaplReader{fs: fs},
+		sysfsPath:  sysfsPath,
 		logger:     slog.Default().With("service", "rapl"),
 		zoneFilter: []string{},
 	}
@@ -149,6 +151,9 @@ func (r *raplPowerMeter) Zones() ([]EnergyZone, error) {
 
 	// Group zones by name for aggregation
 	r.cachedZones = r.groupZonesByName(stdZoneMap)
+
+	// Append optional ACPI / battery power zones (not subject to RAPL zone filter)
+	r.cachedZones = append(r.cachedZones, discoverHardwarePowerZones(r.sysfsPath, r.logger)...)
 	return r.cachedZones, nil
 }
 
