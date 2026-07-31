@@ -164,16 +164,16 @@ deps: ## Dependencies management (tidy and verify)
 
 # Build cross-platform binary and push to registry
 .PHONY: build-image-cross
-build-image-cross: 
+build-image-cross:  ## Build Kepler image for cross-platform
 	docker buildx build \
-		-t mengxue12/kepler:v0.11.2-$(shell date +%Y%m%d%H) \
+		-t mengxue12/kepler:v0.11.2-$(shell date -u +%Y%m%d%H%Z) \
 		-t mengxue12/kepler:v0.11.2-latest \
 		--platform linux/amd64,linux/arm64 \
 		--push \
 		.
 
-.PHONY: build-estimator-cross
-build-estimator-cross:
+.PHONY: build-estimator-cross 
+build-estimator-cross: ## Build estimator image for cross-platform
 	docker buildx build \
 		-f estimator/Dockerfile \
 		-t mengxue12/power-estimator:kepler-v0.11.2-$(shell date +%Y%m%d%H) \
