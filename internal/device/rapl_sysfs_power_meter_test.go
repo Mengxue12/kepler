@@ -107,31 +107,18 @@ func TestSysFSRaplPowerMeter(t *testing.T) {
 
 	// Test that each zone implements the interface correctly
 	assert.NoError(t, err)
-	// With aggregation: two package zones become one AggregatedZone + one core zone = 2 total
-	assert.Equal(t, 2, len(zones), "find 2 zones after aggregation (package + core)")
-	assert.Equal(t, []string{"core", "package"}, sortedZoneNames(zones),
-		"Expected to find aggregated zones in test fixtures")
+	// Two package zones remain distinct so their independent counters and wrap
+	// ranges are available to consumers.
+	assert.Equal(t, 3, len(zones), "find 3 physical RAPL zones after filtering")
+	assert.Equal(t, []string{"core", "package", "package"}, sortedZoneNames(zones))
 
 	for _, zone := range zones {
 		assert.NotEmpty(t, zone.Name(), "Zone name should not be empty")
 		assert.NotEmpty(t, zone.Path(), "Zone path should not be empty")
 		assert.GreaterOrEqual(t, zone.MaxEnergy(), 1000.0*Joule, "Max energy should not be negative")
 
-		// Zone could be either sysfsRaplZone or AggregatedZone
-		switch z := zone.(type) {
-		case sysfsRaplZone:
-			// Individual zone
-			assert.NotNil(t, z)
-		case *AggregatedZone:
-			// Aggregated zone
-			assert.NotNil(t, z)
-			assert.Equal(t, -1, z.Index(), "AggregatedZone should have index -1")
-		default:
-			t.Fatalf("Unexpected zone type: %T", zone)
-		}
-
-		// Skip the original assertion since we now support both zone types
-		_ = zone
+		_, isSysfsZone := zone.(sysfsRaplZone)
+		assert.True(t, isSysfsZone, "Expected physical sysfs RAPL zone, got %T", zone)
 
 		energy, err := zone.Energy()
 		assert.NoError(t, err, zone.Path())
@@ -139,8 +126,8 @@ func TestSysFSRaplPowerMeter(t *testing.T) {
 	}
 }
 
-func TestAggregatedZoneIntegration(t *testing.T) {
-	// Test that RAPL reader creates AggregatedZone for multiple zones with same name
+func TestPhysicalZonesRemainSeparate(t *testing.T) {
+	// RAPL zones with the same name have independent counters and wrap limits.
 	mockReader := &mockSysFSReader{
 		response: []EnergyZone{
 			// Two package zones with same name but different indices and one core zone
@@ -158,37 +145,22 @@ func TestAggregatedZoneIntegration(t *testing.T) {
 	zones, err := rapl.Zones()
 	require.NoError(t, err)
 
-	// Should have 2 zones: 1 aggregated package zone + 1 core zone
-	assert.Equal(t, 2, len(zones), "Expected 2 zones after aggregation")
+	assert.Equal(t, 3, len(zones), "Expected all physical zones")
+	assert.Equal(t, []string{"core", "package", "package"}, sortedZoneNames(zones))
 
-	// Find the package zone - should be AggregatedZone
-	var packageZone EnergyZone
-	var coreZone EnergyZone
+	packagePaths := map[string]Energy{}
 	for _, zone := range zones {
-		if zone.Name() == "package" {
-			packageZone = zone
-		} else if zone.Name() == "core" { // Single zone keeps original name
-			coreZone = zone
+		if zone.Name() != "package" {
+			continue
 		}
+		energy, err := zone.Energy()
+		require.NoError(t, err)
+		packagePaths[zone.Path()] = energy
 	}
-
-	// Verify package zone is aggregated
-	require.NotNil(t, packageZone, "Package zone should exist")
-	aggregated, isAggregated := packageZone.(*AggregatedZone)
-	assert.True(t, isAggregated, "Package zone should be AggregatedZone")
-	assert.Equal(t, "package", aggregated.Name())
-	assert.Equal(t, -1, aggregated.Index())
-	assert.Equal(t, Energy(200000), aggregated.MaxEnergy()) // Sum of both package zones
-
-	// Verify core zone is not aggregated
-	require.NotNil(t, coreZone, "Core zone should exist")
-	_, isNotAggregated := coreZone.(mockZone)
-	assert.True(t, isNotAggregated, "Core zone should remain as individual zone")
-
-	// Test energy aggregation
-	packageEnergy, err := packageZone.Energy()
-	require.NoError(t, err)
-	assert.Equal(t, Energy(3000), packageEnergy) // 1000 + 2000 from both package zones
+	assert.Equal(t, map[string]Energy{
+		"/intel-rapl:0": 1000,
+		"/intel-rapl:1": 2000,
+	}, packagePaths)
 }
 
 type mockZone struct {

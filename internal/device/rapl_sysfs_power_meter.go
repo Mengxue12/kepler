@@ -149,53 +149,16 @@ func (r *raplPowerMeter) Zones() ([]EnergyZone, error) {
 		stdZoneMap[key] = zone
 	}
 
-	// Group zones by name for aggregation
-	r.cachedZones = r.groupZonesByName(stdZoneMap)
+	// Preserve each physical RAPL zone. Zones with the same name may have
+	// independent counters and wrap boundaries on multi-socket systems.
+	r.cachedZones = make([]EnergyZone, 0, len(stdZoneMap))
+	for _, zone := range stdZoneMap {
+		r.cachedZones = append(r.cachedZones, zone)
+	}
 
 	// Append optional ACPI / battery power zones (not subject to RAPL zone filter)
 	r.cachedZones = append(r.cachedZones, discoverHardwarePowerZones(r.sysfsPath, r.logger)...)
 	return r.cachedZones, nil
-}
-
-// groupZonesByName groups zones by their base name and creates AggregatedZone
-// instances when multiple zones share the same name (multi-socket systems)
-func (r *raplPowerMeter) groupZonesByName(stdZoneMap map[zoneKey]EnergyZone) []EnergyZone {
-	// Group zones by base name (e.g., "package", "dram")
-	zoneGroups := make(map[string][]EnergyZone)
-
-	for key, zone := range stdZoneMap {
-		zoneGroups[key.name] = append(zoneGroups[key.name], zone)
-	}
-
-	// Create aggregated zones for duplicates, keep single zones as-is
-	var result []EnergyZone
-	for name, zones := range zoneGroups {
-		if len(zones) == 1 {
-			// Single zone - use as-is
-			result = append(result, zones[0])
-			continue
-
-		}
-
-		// Multiple zones with same name - create AggregatedZone
-		aggregated := NewAggregatedZone(zones)
-		result = append(result, aggregated)
-		r.logger.Debug("Created aggregated zone",
-			"name", name,
-			"zone_count", len(zones),
-			"zones", r.zoneNames(zones))
-	}
-
-	return result
-}
-
-// zoneNames returns a slice of zone names for logging
-func (r *raplPowerMeter) zoneNames(zones []EnergyZone) []string {
-	names := make([]string, len(zones))
-	for i, zone := range zones {
-		names[i] = fmt.Sprintf("%s-%d", zone.Name(), zone.Index())
-	}
-	return names
 }
 
 // PrimaryEnergyZone returns the zone with the highest energy coverage/priority
