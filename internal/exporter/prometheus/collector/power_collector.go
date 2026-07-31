@@ -6,6 +6,7 @@ package collector
 import (
 	"fmt"
 	"log/slog"
+	"strconv"
 	"sync"
 	"time"
 
@@ -111,14 +112,14 @@ func NewPowerCollector(monitor PowerDataProvider, nodeName string, logger *slog.
 		logger:       logger.With("collector", "power"),
 		metricsLevel: metricsLevel,
 
-		nodeCPUJoulesDescriptor: joulesDesc("node", "cpu", nodeName, []string{zone, "path"}),
-		nodeCPUWattsDescriptor:  wattsDesc("node", "cpu", nodeName, []string{zone, "path"}),
+		nodeCPUJoulesDescriptor: joulesDesc("node", "cpu", nodeName, []string{zone, "index", "path"}),
+		nodeCPUWattsDescriptor:  wattsDesc("node", "cpu", nodeName, []string{zone, "index", "path"}),
 
-		nodeCPUActiveJoulesDesc: deviceStateJoulesDesc("node", "cpu", "active", nodeName, []string{zone, "path"}),
-		nodeCPUIdleJoulesDesc:   deviceStateJoulesDesc("node", "cpu", "idle", nodeName, []string{zone, "path"}),
+		nodeCPUActiveJoulesDesc: deviceStateJoulesDesc("node", "cpu", "active", nodeName, []string{zone, "index", "path"}),
+		nodeCPUIdleJoulesDesc:   deviceStateJoulesDesc("node", "cpu", "idle", nodeName, []string{zone, "index", "path"}),
 
-		nodeCPUActiveWattsDesc: deviceStateWattsDesc("node", "cpu", "active", nodeName, []string{zone, "path"}),
-		nodeCPUIdleWattsDesc:   deviceStateWattsDesc("node", "cpu", "idle", nodeName, []string{zone, "path"}),
+		nodeCPUActiveWattsDesc: deviceStateWattsDesc("node", "cpu", "active", nodeName, []string{zone, "index", "path"}),
+		nodeCPUIdleWattsDesc:   deviceStateWattsDesc("node", "cpu", "idle", nodeName, []string{zone, "index", "path"}),
 
 		nodeCPUUsageRatioDescriptor: prometheus.NewDesc(
 			prometheus.BuildFQName(keplerNS, "node", "cpu_usage_ratio"),
@@ -199,6 +200,20 @@ func (c *PowerCollector) isReady() bool {
 	return c.ready
 }
 
+// aggregateZoneUsageByName preserves the historical workload metric semantics:
+// distinct physical zones with the same name are exported as one aggregate.
+func aggregateZoneUsageByName(zones monitor.ZoneUsageMap) map[string]monitor.Usage {
+	aggregated := make(map[string]monitor.Usage, len(zones))
+	for zone, usage := range zones {
+		name := zone.Name()
+		total := aggregated[name]
+		total.EnergyTotal += usage.EnergyTotal
+		total.Power += usage.Power
+		aggregated[name] = total
+	}
+	return aggregated
+}
+
 // Collect implements the prometheus.Collector interface
 func (c *PowerCollector) Collect(ch chan<- prometheus.Metric) {
 	if !c.isReady() {
@@ -256,27 +271,28 @@ func (c *PowerCollector) collectNodeMetrics(ch chan<- prometheus.Metric, node *m
 	for zone, energy := range node.Zones {
 		path := zone.Path()
 		zoneName := zone.Name()
+		zoneIndex := strconv.Itoa(zone.Index())
 
 		// joules
 		ch <- prometheus.MustNewConstMetric(
 			c.nodeCPUJoulesDescriptor,
 			prometheus.CounterValue,
 			energy.EnergyTotal.Joules(),
-			zoneName, path,
+			zoneName, zoneIndex, path,
 		)
 
 		ch <- prometheus.MustNewConstMetric(
 			c.nodeCPUActiveJoulesDesc,
 			prometheus.CounterValue,
 			energy.ActiveEnergyTotal.Joules(),
-			zoneName, path,
+			zoneName, zoneIndex, path,
 		)
 
 		ch <- prometheus.MustNewConstMetric(
 			c.nodeCPUIdleJoulesDesc,
 			prometheus.CounterValue,
 			energy.IdleEnergyTotal.Joules(),
-			zoneName, path,
+			zoneName, zoneIndex, path,
 		)
 
 		// watts
@@ -284,19 +300,19 @@ func (c *PowerCollector) collectNodeMetrics(ch chan<- prometheus.Metric, node *m
 			c.nodeCPUWattsDescriptor,
 			prometheus.GaugeValue,
 			energy.Power.Watts(),
-			zoneName, path,
+			zoneName, zoneIndex, path,
 		)
 		ch <- prometheus.MustNewConstMetric(
 			c.nodeCPUActiveWattsDesc,
 			prometheus.GaugeValue,
 			energy.ActivePower.Watts(),
-			zoneName, path,
+			zoneName, zoneIndex, path,
 		)
 		ch <- prometheus.MustNewConstMetric(
 			c.nodeCPUIdleWattsDesc,
 			prometheus.GaugeValue,
 			energy.IdlePower.Watts(),
-			zoneName, path,
+			zoneName, zoneIndex, path,
 		)
 
 	}
@@ -320,8 +336,7 @@ func (c *PowerCollector) collectProcessMetrics(ch chan<- prometheus.Metric, stat
 			proc.ContainerID, proc.VirtualMachineID,
 		)
 
-		for zone, usage := range proc.Zones {
-			zoneName := zone.Name()
+		for zoneName, usage := range aggregateZoneUsageByName(proc.Zones) {
 			ch <- prometheus.MustNewConstMetric(
 				c.processCPUJoulesDescriptor,
 				prometheus.CounterValue,
@@ -352,9 +367,7 @@ func (c *PowerCollector) collectContainerMetrics(ch chan<- prometheus.Metric, st
 
 	// No need to lock, already done by the calling function
 	for id, container := range containers {
-		for zone, usage := range container.Zones {
-			zoneName := zone.Name()
-
+		for zoneName, usage := range aggregateZoneUsageByName(container.Zones) {
 			ch <- prometheus.MustNewConstMetric(
 				c.containerCPUJoulesDescriptor,
 				prometheus.CounterValue,
@@ -385,8 +398,7 @@ func (c *PowerCollector) collectVMMetrics(ch chan<- prometheus.Metric, state str
 
 	// No need to lock, already done by the calling function
 	for id, vm := range vms {
-		for zone, usage := range vm.Zones {
-			zoneName := zone.Name()
+		for zoneName, usage := range aggregateZoneUsageByName(vm.Zones) {
 			ch <- prometheus.MustNewConstMetric(
 				c.vmCPUJoulesDescriptor,
 				prometheus.CounterValue,
@@ -414,8 +426,7 @@ func (c *PowerCollector) collectPodMetrics(ch chan<- prometheus.Metric, state st
 
 	// No need to lock, already done by the calling function
 	for id, pod := range pods {
-		for zone, usage := range pod.Zones {
-			zoneName := zone.Name()
+		for zoneName, usage := range aggregateZoneUsageByName(pod.Zones) {
 			ch <- prometheus.MustNewConstMetric(
 				c.podCPUJoulesDescriptor,
 				prometheus.CounterValue,

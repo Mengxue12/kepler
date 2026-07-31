@@ -16,6 +16,7 @@ import (
 	dto "github.com/prometheus/client_model/go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 	"github.com/sustainable-computing-io/kepler/config"
 	"github.com/sustainable-computing-io/kepler/internal/device"
 	"github.com/sustainable-computing-io/kepler/internal/monitor"
@@ -345,6 +346,7 @@ func TestPowerCollector(t *testing.T) {
 					path := valueOfLabel(m, "path")
 					value := m.GetCounter().GetValue()
 					zone := valueOfLabel(m, "zone")
+					index := valueOfLabel(m, "index")
 					nodeName := valueOfLabel(m, "node_name")
 
 					seenZoneNames[zone] = true
@@ -356,8 +358,10 @@ func TestPowerCollector(t *testing.T) {
 					// Check absolute values
 					if path == packageZone.Path() {
 						assert.Equal(t, nodePkgAbs.Joules(), value, "Unexpected package joules")
+						assert.Equal(t, "0", index, "Unexpected package index")
 					} else if path == dramZone.Path() {
 						assert.Equal(t, nodeDramAbs.Joules(), value, "Unexpected dram joules")
+						assert.Equal(t, "0", index, "Unexpected dram index")
 					}
 				}
 			}
@@ -484,6 +488,66 @@ func TestPowerCollector(t *testing.T) {
 	})
 
 	// Verify mock expectations
+	mockMonitor.AssertExpectations(t)
+}
+
+func TestPowerCollectorAggregatesWorkloadZonesByName(t *testing.T) {
+	mockMonitor := NewMockPowerMonitor()
+	package0 := device.NewMockRaplZone("package", 0, "/sys/class/powercap/intel-rapl/intel-rapl:0", 1000)
+	package1 := device.NewMockRaplZone("package", 1, "/sys/class/powercap/intel-rapl/intel-rapl:1", 1000)
+
+	snapshot := monitor.NewSnapshot()
+	snapshot.Node.Zones[package0] = monitor.NodeUsage{EnergyTotal: 10 * device.Joule}
+	snapshot.Node.Zones[package1] = monitor.NodeUsage{EnergyTotal: 20 * device.Joule}
+	snapshot.Processes["1"] = &monitor.Process{
+		PID:  1,
+		Comm: "process",
+		Exe:  "/bin/process",
+		Type: resource.RegularProcess,
+		Zones: monitor.ZoneUsageMap{
+			package0: {EnergyTotal: 10 * device.Joule, Power: 1 * device.Watt},
+			package1: {EnergyTotal: 20 * device.Joule, Power: 2 * device.Watt},
+		},
+	}
+	mockMonitor.On("Snapshot").Return(snapshot, nil)
+
+	collector := NewPowerCollector(mockMonitor, "test-node", newLogger(), config.MetricsLevelAll)
+	mockMonitor.TriggerUpdate()
+	time.Sleep(10 * time.Millisecond)
+
+	registry := prometheus.NewRegistry()
+	registry.MustRegister(collector)
+
+	assertMetricLabelValues(t, registry, "kepler_node_cpu_joules_total", map[string]string{
+		"node_name": "test-node",
+		"zone":      "package",
+		"index":     "0",
+		"path":      package0.Path(),
+	}, 10)
+	assertMetricLabelValues(t, registry, "kepler_node_cpu_joules_total", map[string]string{
+		"node_name": "test-node",
+		"zone":      "package",
+		"index":     "1",
+		"path":      package1.Path(),
+	}, 20)
+	assertMetricLabelValues(t, registry, "kepler_process_cpu_joules_total", map[string]string{
+		"node_name": "test-node",
+		"pid":       "1",
+		"zone":      "package",
+	}, 30)
+	assertMetricLabelValues(t, registry, "kepler_process_cpu_watts", map[string]string{
+		"node_name": "test-node",
+		"pid":       "1",
+		"zone":      "package",
+	}, 3)
+
+	metrics, err := registry.Gather()
+	require.NoError(t, err)
+	for _, metricFamily := range metrics {
+		if metricFamily.GetName() == "kepler_process_cpu_joules_total" {
+			assert.Len(t, metricFamily.GetMetric(), 1)
+		}
+	}
 	mockMonitor.AssertExpectations(t)
 }
 
